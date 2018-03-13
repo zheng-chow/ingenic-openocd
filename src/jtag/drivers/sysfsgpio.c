@@ -16,6 +16,10 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
+
+/* 2014-12: Addition of the SWD protocol support is based on the initial work
+ * on bcm2835gpio.c by Paul Fertser and modifications by Jean-Christian de Rivaz. */
+
 /**
  * @file
  * This driver implements a bitbang jtag interface using gpio lines via
@@ -53,210 +57,43 @@
 #include <jtag/interface.h>
 #include "bitbang.h"
 
-/*
- * Helper func to determine if gpio number valid
- *
- * Assume here that there will be less than 1000 gpios on a system
- */
-static int is_gpio_valid(int gpio)
-{
-	return gpio >= 0 && gpio < 1000;
-}
+#include <sys/mman.h>
 
-/*
- * Helper func to open, write to and close a file
- * name and valstr must be null terminated.
- *
- * Returns negative on failure.
- */
-static int open_write_close(const char *name, const char *valstr)
-{
-	int ret;
-	int fd = open(name, O_WRONLY);
-	if (fd < 0)
-		return fd;
+#define GPIO_BASE	(0x10010000) /* GPIO controller */
 
-	ret = write(fd, valstr, strlen(valstr));
-	close(fd);
+#define PDPIN		(*(pio_base+0x300/4))
+#define PDINT		(*(pio_base+0x310/4))
+#define PDINTS		(*(pio_base+0x314/4))
+#define PDINTC		(*(pio_base+0x318/4))
+#define PDMSK		(*(pio_base+0x320/4))
+#define PDMSKS		(*(pio_base+0x324/4))
+#define PDMSKC		(*(pio_base+0x328/4))
+#define PDPAT1		(*(pio_base+0x330/4))
+#define PDPAT1S		(*(pio_base+0x334/4))
+#define PDPAT1C		(*(pio_base+0x338/4))
+#define PDPAT0		(*(pio_base+0x340/4))
+#define PDPAT0S		(*(pio_base+0x344/4))
+#define PDPAT0C		(*(pio_base+0x348/4))
 
-	return ret;
-}
+#define PZINTS		(*(pio_base+0x714/4))
+#define PZINTC		(*(pio_base+0x718/4))
+#define PZMSKS		(*(pio_base+0x724/4))
+#define PZMSKC		(*(pio_base+0x728/4))
+#define PZPAT1S		(*(pio_base+0x734/4))
+#define PZPAT1C		(*(pio_base+0x738/4))
+#define PZPAT0S		(*(pio_base+0x744/4))
+#define PZPAT0C		(*(pio_base+0x748/4))
+#define PZGID2LD	(*(pio_base+0x7f0/4))
 
-/*
- * Helper func to unexport gpio from sysfs
- */
-static void unexport_sysfs_gpio(int gpio)
-{
-	char gpiostr[4];
+static int dev_mem_fd;
+static volatile uint32_t *pio_base;
 
-	if (!is_gpio_valid(gpio))
-		return;
+static int sysfsgpio_read(void);
+static void sysfsgpio_write(int tck, int tms, int tdi);
+static void sysfsgpio_reset(int trst, int srst);
 
-	snprintf(gpiostr, sizeof(gpiostr), "%d", gpio);
-	if (open_write_close("/sys/class/gpio/unexport", gpiostr) < 0)
-		LOG_ERROR("Couldn't unexport gpio %d", gpio);
-
-	return;
-}
-
-/*
- * Exports and sets up direction for gpio.
- * If the gpio is an output, it is initialized according to init_high,
- * otherwise it is ignored.
- *
- * If the gpio is already exported we just show a warning and continue; if
- * openocd happened to crash (or was killed by user) then the gpios will not
- * have been cleaned up.
- */
-static int setup_sysfs_gpio(int gpio, int is_output, int init_high)
-{
-	char buf[40];
-	char gpiostr[4];
-	int ret;
-
-	if (!is_gpio_valid(gpio))
-		return ERROR_OK;
-
-	snprintf(gpiostr, sizeof(gpiostr), "%d", gpio);
-	ret = open_write_close("/sys/class/gpio/export", gpiostr);
-	if (ret < 0) {
-		if (errno == EBUSY) {
-			LOG_WARNING("gpio %d is already exported", gpio);
-		} else {
-			LOG_ERROR("Couldn't export gpio %d", gpio);
-			perror("sysfsgpio: ");
-			return ERROR_FAIL;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/direction", gpio);
-	ret = open_write_close(buf, is_output ? (init_high ? "high" : "low") : "in");
-	if (ret < 0) {
-		LOG_ERROR("Couldn't set direction for gpio %d", gpio);
-		perror("sysfsgpio: ");
-		unexport_sysfs_gpio(gpio);
-		return ERROR_FAIL;
-	}
-
-	snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/value", gpio);
-	if (is_output)
-		ret = open(buf, O_WRONLY | O_NONBLOCK | O_SYNC);
-	else
-		ret = open(buf, O_RDONLY | O_NONBLOCK | O_SYNC);
-
-	if (ret < 0)
-		unexport_sysfs_gpio(gpio);
-
-	return ret;
-}
-
-/*
- * file descriptors for /sys/class/gpio/gpioXX/value
- * Set up during init.
- */
-static int tck_fd = -1;
-static int tms_fd = -1;
-static int tdi_fd = -1;
-static int tdo_fd = -1;
-static int trst_fd = -1;
-static int srst_fd = -1;
-
-/*
- * Bitbang interface read of TDO
- *
- * The sysfs value will read back either '0' or '1'. The trick here is to call
- * lseek to bypass buffering in the sysfs kernel driver.
- */
-static int sysfsgpio_read(void)
-{
-	char buf[1];
-
-	/* important to seek to signal sysfs of new read */
-	lseek(tdo_fd, 0, SEEK_SET);
-	int ret = read(tdo_fd, &buf, sizeof(buf));
-
-	if (ret < 0) {
-		LOG_WARNING("reading tdo failed");
-		return 0;
-	}
-
-	return buf[0] == '1';
-}
-
-/*
- * Bitbang interface write of TCK, TMS, TDI
- *
- * Seeing as this is the only function where the outputs are changed,
- * we can cache the old value to avoid needlessly writing it.
- */
-static void sysfsgpio_write(int tck, int tms, int tdi)
-{
-	const char one[] = "1";
-	const char zero[] = "0";
-
-	static int last_tck;
-	static int last_tms;
-	static int last_tdi;
-
-	static int first_time;
-	size_t bytes_written;
-
-	if (!first_time) {
-		last_tck = !tck;
-		last_tms = !tms;
-		last_tdi = !tdi;
-		first_time = 1;
-	}
-
-	if (tdi != last_tdi) {
-		bytes_written = write(tdi_fd, tdi ? &one : &zero, 1);
-		if (bytes_written != 1)
-			LOG_WARNING("writing tdi failed");
-	}
-
-	if (tms != last_tms) {
-		bytes_written = write(tms_fd, tms ? &one : &zero, 1);
-		if (bytes_written != 1)
-			LOG_WARNING("writing tms failed");
-	}
-
-	/* write clk last */
-	if (tck != last_tck) {
-		bytes_written = write(tck_fd, tck ? &one : &zero, 1);
-		if (bytes_written != 1)
-			LOG_WARNING("writing tck failed");
-	}
-
-	last_tdi = tdi;
-	last_tms = tms;
-	last_tck = tck;
-}
-
-/*
- * Bitbang interface to manipulate reset lines SRST and TRST
- *
- * (1) assert or (0) deassert reset lines
- */
-static void sysfsgpio_reset(int trst, int srst)
-{
-	const char one[] = "1";
-	const char zero[] = "0";
-	size_t bytes_written;
-
-	/* assume active low */
-	if (srst_fd >= 0) {
-		bytes_written = write(srst_fd, srst ? &zero : &one, 1);
-		if (bytes_written != 1)
-			LOG_WARNING("writing srst failed");
-	}
-
-	/* assume active low */
-	if (trst_fd >= 0) {
-		bytes_written = write(trst_fd, trst ? &zero : &one, 1);
-		if (bytes_written != 1)
-			LOG_WARNING("writing trst failed");
-	}
-}
+static int sysfsgpio_init(void);
+static int sysfsgpio_quit(void);
 
 /* gpio numbers for each gpio. Negative values are invalid */
 static int tck_gpio = -1;
@@ -266,238 +103,319 @@ static int tdo_gpio = -1;
 static int trst_gpio = -1;
 static int srst_gpio = -1;
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionums)
+/* Transition delay coefficients */
+static int speed_coeff = 113714;
+static int speed_offset = 28;
+static int port_status;
+static unsigned int jtag_delay;
+
+static int sysfsgpio_read(void)							//mod
+{										//mod
+	return !!(PDPIN & 1<<tdo_gpio);						//mod
+}										//mod
+
+static void sysfsgpio_write(int tck, int tms, int tdi)				//mod
+{										//mod
+	//uint32_t set = tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;		//mod
+	//uint32_t clear = !tck<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;	//mod
+	port_status = port_status & ~(1<<tck_gpio | 1<<tms_gpio | 1<<tdi_gpio) | tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
+
+	//PDPAT0S = set;							//mod
+	//PDPAT0C = clear;							//mod
+	PDPAT0 = port_status;
+
+	for (unsigned int i = 0; i < jtag_delay; i++)				//mod
+		asm volatile ("");						//mod
+}										//mod
+
+/* (1) assert or (0) deassert reset lines */
+static void sysfsgpio_reset(int trst, int srst)					//mod
+{										//mod
+	uint32_t set = 0;							//mod
+	uint32_t clear = 0;							//mod
+										//mod
+	if (trst_gpio > 0) {							//mod
+		//set |= !trst<<trst_gpio;					//mod
+		//clear |= trst<<trst_gpio;					//mod
+		port_status = port_status & ~(1<<trst_gpio) | !trst<<trst_gpio;
+	}									//mod
+
+	if (srst_gpio > 0) {							//mod
+		//set |= !srst<<srst_gpio;					//mod
+		//clear |= srst<<srst_gpio;					//mod
+		port_status = port_status & ~(1<<srst_gpio) | !srst<<srst_gpio;
+	}									//mod
+
+	//PDPAT0S = set;							//mod
+	//PDPAT0C = clear;							//mod
+	PDPAT0 = port_status;
+}										//mod
+
+static int sysfsgpio_khz(int khz, int *jtag_speed)				//mod
+{										//mod
+	if (!khz) {								//mod
+		LOG_DEBUG("RCLK not supported");				//mod
+		return ERROR_FAIL;						//mod
+	}									//mod
+	*jtag_speed = speed_coeff/khz - speed_offset;				//mod
+	if (*jtag_speed < 0)							//mod
+		*jtag_speed = 0;						//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+static int sysfsgpio_speed_div(int speed, int *khz)				//mod
+{										//mod
+	*khz = speed_coeff/(speed + speed_offset);				//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+static int sysfsgpio_speed(int speed)						//mod
+{										//mod
+	jtag_delay = speed;							//mod
+	printf("jtag_delay = %08X\n",jtag_delay);
+	return ERROR_OK;							//mod
+}										//mod
+
+static int is_gpio_valid(int gpio)						//mod
+{										//mod
+	return gpio >= 0 && gpio <= 32;						//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionums)					//mod
+{										//mod
+	if (CMD_ARGC == 4) {							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tck_gpio);		//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[1], tms_gpio);		//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[2], tdi_gpio);		//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[3], tdo_gpio);		//mod
+	} else if (CMD_ARGC != 0) {						//mod
+		return ERROR_COMMAND_SYNTAX_ERROR;				//mod
+	}									//mod
+
+	command_print(CMD_CTX,							//mod
+			"GPIO config: tck = %d, tms = %d, tdi = %d, tdi = %d",	//mod
+			tck_gpio, tms_gpio, tdi_gpio, tdo_gpio);		//mod
+
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tck)				//mod
+{										//mod
+	if (CMD_ARGC == 1)							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tck_gpio);		//mod
+
+	command_print(CMD_CTX, "SysfsGPIO num: tck = %d", tck_gpio);		//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tms)				//mod
+{										//mod
+	if (CMD_ARGC == 1)							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tms_gpio);		//mod
+
+	command_print(CMD_CTX, "SysfsGPIO num: tms = %d", tms_gpio);		//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tdo)				//mod
+{										//mod
+	if (CMD_ARGC == 1)							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tdo_gpio);		//mod
+
+	command_print(CMD_CTX, "SysfsGPIO num: tdo = %d", tdo_gpio);		//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tdi)				//mod
+{										//mod
+	if (CMD_ARGC == 1)							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tdi_gpio);		//mod
+
+	command_print(CMD_CTX, "SysfsGPIO num: tdi = %d", tdi_gpio);		//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_srst)				//mod
+{										//mod
+	if (CMD_ARGC == 1)							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], srst_gpio);		//mod
+
+	command_print(CMD_CTX, "SysfsGPIO num: srst = %d", srst_gpio);		//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_trst)				//mod
+{										//mod
+	if (CMD_ARGC == 1)							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], trst_gpio);		//mod
+
+	command_print(CMD_CTX, "SysfsGPIO num: trst = %d", trst_gpio);		//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+COMMAND_HANDLER(sysfsgpio_handle_speed_coeffs)					//mod
+{										//mod
+	if (CMD_ARGC == 2) {							//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], speed_coeff);		//mod
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[1], speed_offset);		//mod
+	}									//mod
+	return ERROR_OK;							//mod
+}										//mod
+
+static const struct command_registration sysfsgpio_command_handlers[] = {	//mod
+	{									//mod
+		.name = "sysfsgpio_jtag_nums",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionums,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio numbers for tck, tms, tdi, tdo. (in that order)",	//mod
+		.usage = "(tck tms tdi tdo)* ",					//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_tck_num",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionum_tck,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio number for tck.",					//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_tms_num",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionum_tms,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio number for tms.",					//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_tdo_num",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionum_tdo,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio number for tdo.",					//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_tdi_num",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionum_tdi,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio number for tdi.",					//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_srst_num",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionum_srst,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio number for srst.",				//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_trst_num",					//mod
+		.handler = &sysfsgpio_handle_jtag_gpionum_trst,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "gpio number for trst.",				//mod
+	},									//mod
+	{									//mod
+		.name = "sysfsgpio_speed_coeffs",				//mod
+		.handler = &sysfsgpio_handle_speed_coeffs,			//mod
+		.mode = COMMAND_CONFIG,						//mod
+		.help = "SPEED_COEFF and SPEED_OFFSET for delay calculations.",	//mod
+	},									//mod
+	COMMAND_REGISTRATION_DONE						//mod
+};										//mod
+
+static struct bitbang_interface sysfsgpio_bitbang = {				//mod
+	.read = sysfsgpio_read,							//mod
+	.write = sysfsgpio_write,						//mod
+	.reset = sysfsgpio_reset,						//mod
+	.blink = NULL								//mod
+};										//mod
+
+struct jtag_interface sysfsgpio_interface = {					//mod
+	.name = "sysfsgpio",							//mod
+	.supported = DEBUG_CAP_TMS_SEQ,						//mod
+	.execute_queue = bitbang_execute_queue,					//mod
+	.transports = jtag_only,						//mod
+	.speed = sysfsgpio_speed,						//mod
+	.khz = sysfsgpio_khz,							//mod
+	.speed_div = sysfsgpio_speed_div,					//mod
+	.commands = sysfsgpio_command_handlers,					//mod
+	.init = sysfsgpio_init,							//mod
+	.quit = sysfsgpio_quit,							//mod
+};										//mod
+
+static int sysfsgpio_init(void)							//mod
 {
-	if (CMD_ARGC == 4) {
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tck_gpio);
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[1], tms_gpio);
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[2], tdi_gpio);
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[3], tdo_gpio);
-	} else if (CMD_ARGC != 0) {
-		return ERROR_COMMAND_SYNTAX_ERROR;
-	}
+	bitbang_interface = &sysfsgpio_bitbang;					//mod
 
-	command_print(CMD_CTX,
-			"SysfsGPIO nums: tck = %d, tms = %d, tdi = %d, tdo = %d",
-			tck_gpio, tms_gpio, tdi_gpio, tdo_gpio);
+	if (!is_gpio_valid(tdo_gpio) || !is_gpio_valid(tdi_gpio) ||		//mod
+		!is_gpio_valid(tck_gpio) || !is_gpio_valid(tms_gpio) ||		//mod
+		(trst_gpio != -1 && !is_gpio_valid(trst_gpio)) ||		//mod
+		(srst_gpio != -1 && !is_gpio_valid(srst_gpio)))			//mod
+		return ERROR_JTAG_INIT_FAILED;					//mod
 
-	return ERROR_OK;
-}
+	dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);				//mod
+	if (dev_mem_fd < 0) {							//mod
+		perror("open");							//mod
+		return ERROR_JTAG_INIT_FAILED;					//mod
+	}									//mod
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tck)
-{
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tck_gpio);
+	pio_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,	//mod
+				MAP_SHARED, dev_mem_fd, 0x10010000);		//mod
 
-	command_print(CMD_CTX, "SysfsGPIO num: tck = %d", tck_gpio);
-	return ERROR_OK;
-}
+	if (pio_base == MAP_FAILED) {						//mod
+		perror("mmap");							//mod
+		close(dev_mem_fd);						//mod
+		return ERROR_JTAG_INIT_FAILED;					//mod
+	}									//mod
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tms)
-{
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tms_gpio);
+	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
+	PZMSKS = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
+	PZPAT1S = 1<<tdo_gpio;							//mod
+	PZPAT1C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;			//mod
+	PZPAT0S = 1<<tms_gpio;							//mod
+	PZPAT0C = 1<<tdi_gpio | 1<<tck_gpio;					//mod
+	PZGID2LD = 0x3;								//mod
 
-	command_print(CMD_CTX, "SysfsGPIO num: tms = %d", tms_gpio);
-	return ERROR_OK;
-}
+	if (trst_gpio != -1) {							//mod
+		PZINTC = 1 << trst_gpio;					//mod
+		PZMSKS = 1 << trst_gpio;					//mod
+		PZPAT1C = 1 << trst_gpio;					//mod
+		PZPAT0S = 1 << trst_gpio;					//mod
+		PZGID2LD = 0x3;							//mod
+	}									//mod
+	if (srst_gpio != -1) {							//mod
+		PZINTC = 1 << srst_gpio;					//mod
+		PZMSKS = 1 << srst_gpio;					//mod
+		PZPAT1C = 1 << srst_gpio;					//mod
+		PZPAT0S = 1 << srst_gpio;					//mod
+		PZGID2LD = 0x3;							//mod
+	}									//mod
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tdo)
-{
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tdo_gpio);
+	port_status = PDPAT0;
 
-	command_print(CMD_CTX, "SysfsGPIO num: tdo = %d", tdo_gpio);
-	return ERROR_OK;
-}
+	LOG_INFO("GPIO JTAG bitbang driver");					//mod
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_tdi)
-{
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], tdi_gpio);
+	printf("port_status = %08X\n",port_status);
 
-	command_print(CMD_CTX, "SysfsGPIO num: tdi = %d", tdi_gpio);
-	return ERROR_OK;
-}
+	return ERROR_OK;							//mod
+}										//mod
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_srst)
-{
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], srst_gpio);
+static int sysfsgpio_quit(void)							//mod
+{										//mod
+	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
+	PZMSKS = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
+	PZPAT1S = 1<<tdo_gpio;							//mod
+	PZPAT1C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;			//mod
+	PZPAT0C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;			//mod
+	PZGID2LD = 0x3;								//mod
 
-	command_print(CMD_CTX, "SysfsGPIO num: srst = %d", srst_gpio);
-	return ERROR_OK;
-}
+	if (trst_gpio != -1) {							//mod
+		PZINTC = 1 << trst_gpio;					//mod
+		PZMSKS = 1 << trst_gpio;					//mod
+		PZPAT1C = 1 << trst_gpio;					//mod
+		PZPAT0C = 1 << trst_gpio;					//mod
+		PZGID2LD = 0x3;							//mod
+	}									//mod
+	if (srst_gpio != -1) {							//mod
+		PZINTC = 1 << srst_gpio;					//mod
+		PZMSKS = 1 << srst_gpio;					//mod
+		PZPAT1C = 1 << srst_gpio;					//mod
+		PZPAT0C = 1 << srst_gpio;					//mod
+		PZGID2LD = 0x3;							//mod
+	}									//mod
 
-COMMAND_HANDLER(sysfsgpio_handle_jtag_gpionum_trst)
-{
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], trst_gpio);
-
-	command_print(CMD_CTX, "SysfsGPIO num: trst = %d", trst_gpio);
-	return ERROR_OK;
-}
-
-static const struct command_registration sysfsgpio_command_handlers[] = {
-	{
-		.name = "sysfsgpio_jtag_nums",
-		.handler = &sysfsgpio_handle_jtag_gpionums,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio numbers for tck, tms, tdi, tdo. (in that order)",
-		.usage = "(tck tms tdi tdo)* ",
-	},
-	{
-		.name = "sysfsgpio_tck_num",
-		.handler = &sysfsgpio_handle_jtag_gpionum_tck,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio number for tck.",
-	},
-	{
-		.name = "sysfsgpio_tms_num",
-		.handler = &sysfsgpio_handle_jtag_gpionum_tms,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio number for tms.",
-	},
-	{
-		.name = "sysfsgpio_tdo_num",
-		.handler = &sysfsgpio_handle_jtag_gpionum_tdo,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio number for tdo.",
-	},
-	{
-		.name = "sysfsgpio_tdi_num",
-		.handler = &sysfsgpio_handle_jtag_gpionum_tdi,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio number for tdi.",
-	},
-	{
-		.name = "sysfsgpio_srst_num",
-		.handler = &sysfsgpio_handle_jtag_gpionum_srst,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio number for srst.",
-	},
-	{
-		.name = "sysfsgpio_trst_num",
-		.handler = &sysfsgpio_handle_jtag_gpionum_trst,
-		.mode = COMMAND_CONFIG,
-		.help = "gpio number for trst.",
-	},
-	COMMAND_REGISTRATION_DONE
-};
-
-static int sysfsgpio_init(void);
-static int sysfsgpio_quit(void);
-
-struct jtag_interface sysfsgpio_interface = {
-	.name = "sysfsgpio",
-	.supported = DEBUG_CAP_TMS_SEQ,
-	.execute_queue = bitbang_execute_queue,
-	.transports = jtag_only,
-	.commands = sysfsgpio_command_handlers,
-	.init = sysfsgpio_init,
-	.quit = sysfsgpio_quit,
-};
-
-static struct bitbang_interface sysfsgpio_bitbang = {
-	.read = sysfsgpio_read,
-	.write = sysfsgpio_write,
-	.reset = sysfsgpio_reset,
-	.blink = 0
-};
-
-/* helper func to close and cleanup files only if they were valid/ used */
-static void cleanup_fd(int fd, int gpio)
-{
-	if (gpio >= 0) {
-		if (fd >= 0)
-			close(fd);
-
-		unexport_sysfs_gpio(gpio);
-	}
-}
-
-static void cleanup_all_fds(void)
-{
-	cleanup_fd(tck_fd, tck_gpio);
-	cleanup_fd(tms_fd, tms_gpio);
-	cleanup_fd(tdi_fd, tdi_gpio);
-	cleanup_fd(tdo_fd, tdo_gpio);
-	cleanup_fd(trst_fd, trst_gpio);
-	cleanup_fd(srst_fd, srst_gpio);
-}
-
-static int sysfsgpio_init(void)
-{
-	bitbang_interface = &sysfsgpio_bitbang;
-
-	LOG_INFO("SysfsGPIO JTAG bitbang driver");
-
-	if (!(is_gpio_valid(tck_gpio)
-			&& is_gpio_valid(tms_gpio)
-			&& is_gpio_valid(tdi_gpio)
-			&& is_gpio_valid(tdo_gpio))) {
-		if (!is_gpio_valid(tck_gpio))
-			LOG_ERROR("gpio num for tck is invalid");
-		if (!is_gpio_valid(tms_gpio))
-			LOG_ERROR("gpio num for tms is invalid");
-		if (!is_gpio_valid(tdo_gpio))
-			LOG_ERROR("gpio num for tdo is invalid");
-		if (!is_gpio_valid(tdi_gpio))
-			LOG_ERROR("gpio num for tdi is invalid");
-
-		LOG_ERROR("Require tck, tms, tdi and tdo gpios to all be specified");
-		return ERROR_JTAG_INIT_FAILED;
-	}
-
-	if (!is_gpio_valid(trst_gpio) && !is_gpio_valid(srst_gpio)) {
-		LOG_ERROR("Require at least one of trst or srst gpios to be specified");
-		return ERROR_JTAG_INIT_FAILED;
-	}
-
-	/*
-	 * Configure TDO as an input, and TDI, TCK, TMS, TRST, SRST
-	 * as outputs.  Drive TDI and TCK low, and TMS/TRST/SRST high.
-	 */
-	tck_fd = setup_sysfs_gpio(tck_gpio, 1, 0);
-	if (tck_fd < 0)
-		goto out_error;
-
-	tms_fd = setup_sysfs_gpio(tms_gpio, 1, 1);
-	if (tms_fd < 0)
-		goto out_error;
-
-	tdi_fd = setup_sysfs_gpio(tdi_gpio, 1, 0);
-	if (tdi_fd < 0)
-		goto out_error;
-
-	tdo_fd = setup_sysfs_gpio(tdo_gpio, 0, 0);
-	if (tdo_fd < 0)
-		goto out_error;
-
-	/* assume active low*/
-	if (trst_gpio > 0) {
-		trst_fd = setup_sysfs_gpio(trst_gpio, 1, 1);
-		if (trst_fd < 0)
-			goto out_error;
-	}
-
-	/* assume active low*/
-	if (srst_gpio > 0) {
-		srst_fd = setup_sysfs_gpio(srst_gpio, 1, 1);
-		if (srst_fd < 0)
-			goto out_error;
-	}
-
-	return ERROR_OK;
-
-out_error:
-	cleanup_all_fds();
-	return ERROR_JTAG_INIT_FAILED;
-}
-
-static int sysfsgpio_quit(void)
-{
-	cleanup_all_fds();
-	return ERROR_OK;
-}
+	return ERROR_OK;							//mod
+}										//mod
 
