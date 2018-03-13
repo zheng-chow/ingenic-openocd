@@ -1205,7 +1205,7 @@ int mips_common_write_memory(struct target *target, uint32_t address,
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (size == 4 && count > 32) {
+	if ((size == 4) && (count > 32) && (ejtag_info->ejtag_version > EJTAG_VERSION_25)) {
 		int retval = mips_common_bulk_write_memory(target, address, count, buffer);
 		if (retval == ERROR_OK)
 			return ERROR_OK;
