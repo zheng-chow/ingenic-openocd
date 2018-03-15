@@ -267,6 +267,7 @@ int mips_common_poll(struct target *target)
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl;
+	uint32_t ejtag_addr = 0;
 	enum target_state prev_target_state = target->state;
 
 	/*	toggle to another core is done by gdb as follow */
@@ -316,9 +317,16 @@ int mips_common_poll(struct target *target)
 	}
 
 	/* check for processor halted */
-	if (ejtag_ctrl & EJTAG_CTRL_BRKST) {
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+	retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_addr);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips_ejtag_drscan_32 failed: ejtag_addr = 0x%8.8x", ejtag_addr);
+		return retval;
+	}
+	if ((ejtag_ctrl & EJTAG_CTRL_BRKST) && (ejtag_ctrl & EJTAG_CTRL_PRACC) && (ejtag_addr == MIPS32_PRACC_TEXT)) {
 		if ((target->state != TARGET_HALTED)
 			&& (target->state != TARGET_DEBUG_RUNNING)) {
+			LOG_DEBUG("EJTAG_CTRL_BRKST = 1 when polling");
 			LOG_DEBUG("target->state != TARGET_HALTED && target->state != TARGET_DEBUG_RUNNING");
 			LOG_DEBUG("target->state: 0x%x", target->state);
 			if (target->state == TARGET_UNKNOWN)
@@ -352,6 +360,7 @@ int mips_common_poll(struct target *target)
 
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		} else if (target->state == TARGET_DEBUG_RUNNING) {
+			LOG_DEBUG("EJTAG_CTRL_BRKST = 1 when polling");
 			target->state = TARGET_HALTED;
 
 			retval = mips_common_debug_entry(target, 1);
