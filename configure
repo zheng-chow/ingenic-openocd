@@ -686,6 +686,8 @@ BITBANG_FALSE
 BITBANG_TRUE
 BCM2835GPIO_FALSE
 BCM2835GPIO_TRUE
+X1000_FALSE
+X1000_TRUE
 AT91RM9200_FALSE
 AT91RM9200_TRUE
 IOUTIL_FALSE
@@ -924,6 +926,7 @@ enable_ioutil
 enable_ep93xx
 enable_at91rm9200
 enable_bcm2835gpio
+enable_x1000
 enable_gw16012
 enable_oocd_trace
 enable_buspirate
@@ -1650,6 +1653,7 @@ Optional Features:
   --enable-at91rm9200     Enable building support for AT91RM9200 based SBCs
   --enable-bcm2835gpio    Enable building support for bitbanging on BCM2835
                           (as found in Raspberry Pi)
+  --enable-x1000          Enable building support for bitbanging on X1000
   --enable-gw16012        Enable building support for the Gateworks GW16012
                           JTAG Programmer
   --enable-oocd_trace     Enable building support for some prototype
@@ -14132,6 +14136,24 @@ fi
  ;;
 esac
 
+
+case "${host_cpu}" in #(
+  mips*) :
+
+    # Check whether --enable-x1000 was given.
+if test "${enable_x1000+set}" = set; then :
+  enableval=$enable_x1000; build_x1000=$enableval
+else
+  build_x1000=no
+fi
+
+   ;; #(
+  *) :
+
+    build_x1000=no
+ ;;
+esac
+
 # Check whether --enable-gw16012 was given.
 if test "${enable_gw16012+set}" = set; then :
   enableval=$enable_gw16012; build_gw16012=$enableval
@@ -14542,6 +14564,21 @@ else
 
 
 $as_echo "#define BUILD_BCM2835GPIO 0" >>confdefs.h
+
+
+fi
+
+if test "x$build_x1000" = "xyes"; then :
+
+  build_bitbang=yes
+
+$as_echo "#define BUILD_X1000 1" >>confdefs.h
+
+
+else
+
+
+$as_echo "#define BUILD_X1000 0" >>confdefs.h
 
 
 fi
@@ -16008,6 +16045,14 @@ else
   BCM2835GPIO_FALSE=
 fi
 
+ if test "x$build_x1000" = "xyes"; then
+  X1000_TRUE=
+  X1000_FALSE='#'
+else
+  X1000_TRUE='#'
+  X1000_FALSE=
+fi
+
  if test "x$build_bitbang" = "xyes"; then
   BITBANG_TRUE=
   BITBANG_FALSE='#'
@@ -16545,6 +16590,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${BCM2835GPIO_TRUE}" && test -z "${BCM2835GPIO_FALSE}"; then
   as_fn_error $? "conditional \"BCM2835GPIO\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${X1000_TRUE}" && test -z "${X1000_FALSE}"; then
+  as_fn_error $? "conditional \"X1000\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${BITBANG_TRUE}" && test -z "${BITBANG_FALSE}"; then
