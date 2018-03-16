@@ -317,14 +317,15 @@ int mips_common_poll(struct target *target)
 	}
 
 	/* check for processor halted */
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+	/*mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_addr);
 	if (retval != ERROR_OK) {
 		LOG_DEBUG("mips_ejtag_drscan_32 failed: ejtag_addr = 0x%8.8x", ejtag_addr);
 		return retval;
-	}
-	if ((ejtag_ctrl & EJTAG_CTRL_BRKST) && (ejtag_ctrl & EJTAG_CTRL_PRACC) && (ejtag_addr == MIPS32_PRACC_TEXT)) {
-		if ((target->state != TARGET_HALTED)
+	}*/
+	//if ((ejtag_ctrl & EJTAG_CTRL_BRKST) && (ejtag_ctrl & EJTAG_CTRL_PRACC) && (ejtag_addr == MIPS32_PRACC_TEXT)) {
+	if (ejtag_ctrl & EJTAG_CTRL_BRKST) {
+		if ((target->state != TARGET_HALTED) 
 			&& (target->state != TARGET_DEBUG_RUNNING)) {
 			LOG_DEBUG("EJTAG_CTRL_BRKST = 1 when polling");
 			LOG_DEBUG("target->state != TARGET_HALTED && target->state != TARGET_DEBUG_RUNNING");
