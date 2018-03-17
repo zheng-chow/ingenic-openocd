@@ -925,7 +925,7 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 	 * so that changes do not continue to live only in D$ (if CCA = 3), but to be
 	 * replicated in I$ also (maybe we wrote the istructions)
 	 */
-	if ((KSEGX(addr) == KSEG1) || ((addr >= 0xff200000) && (addr <= 0xff3fffff)))
+	if ((KSEGX(addr) == KSEG1) || ((addr >= 0xff200000) && (addr <= 0xff3fffff))) // TODO:The Ingenic cpu ejtag has itself accelerate mode
 		return retval; /*Nothing to do*/
 
 	int cached = 0;
@@ -972,7 +972,10 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 	cpuType = DetermineCpuTypeFromPrid(prid, conf, config1);
 
 	/* Write back cache or write through cache */
-	if ((cpuType == MIPS_INTERAPTIV) || (cpuType == MIPS_INTERAPTIV_CM)) {
+	if ((cpuType == MIPS_INTERAPTIV          ) ||
+	    (cpuType == MIPS_INTERAPTIV_CM       ) ||
+	    (cpuType == MIPS_INGENIC_XBURST1     ) ||
+	    (cpuType == MIPS_INGENIC_XBURST2     )) {
 		if ((cached == CCA_IAPTIV_CWBE) || (cached == CCA_IAPTIV_CWB) || (cached == CCA_WB)) {
 			uint32_t start_addr = addr;
 			uint32_t end_addr = addr + count * size;
