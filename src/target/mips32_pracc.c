@@ -301,12 +301,12 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 					}
 				}
 				if (!pass) {
-					if ((code_count - ctx->code_count) > 1) {	 /* allow max 2 instruction delay slot */
+					if ((code_count - ctx->code_count) > 64) {	 /* allow max 2 instruction delay slot */
 						LOG_DEBUG("failed to jump back to pracc text");
 						return ERROR_JTAG_DEVICE_ERROR;
 					}
 				} else
-					if (code_count > 10) {		/* enough, abandone */
+					if (code_count > 256) {		/* enough, abandone */
 						LOG_DEBUG("execution abandoned, store pending: %d", store_pending);
 						return ERROR_JTAG_DEVICE_ERROR;
 					}
@@ -331,8 +331,38 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		}
 
 		if (store_pending == 0 && pass) {	/* store access done, but after passing pracc text */
-			LOG_DEBUG("warning: store access pass pracc text");
-			return ERROR_OK;
+			LOG_DEBUG("store access pass pracc text");
+
+            retval = mips32_pracc_read_ctrl_addr(ejtag_info);               /* update current pa info: control and address */
+            if (retval != ERROR_OK) {
+                LOG_DEBUG("mips32_pracc_read_ctrl_addr failed");
+                return retval;
+            }
+            instr = MIPS32_B(NEG16(code_count + 1));
+            while(ejtag_info->pa_addr != MIPS32_PRACC_TEXT) {
+                /* Check for read or write access */
+                if (ejtag_info->pa_ctrl & EJTAG_CTRL_PRNW) {/* write/store access */
+                    LOG_DEBUG("Find a write when back to MIPS32_PRACC_TEXT");
+                    return ERROR_JTAG_DEVICE_ERROR;
+                } else {
+                    /* Send instruction out */
+                    mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+                    mips_ejtag_drscan_32_out(ejtag_info, instr);
+                    /* finish processor access, let the processor eat! */
+                    retval = mips32_pracc_finish(ejtag_info);
+                    if (retval != ERROR_OK) {
+                        LOG_DEBUG("mips32_pracc_finish failed");
+                        return retval;
+                    }
+                }
+                instr = MIPS32_NOP;
+                retval = mips32_pracc_read_ctrl_addr(ejtag_info);               /* update current pa info: control and address */
+                if (retval != ERROR_OK) {
+                    LOG_DEBUG("mips32_pracc_read_ctrl_addr failed");
+                    return retval;
+                }
+            }
+            return ERROR_OK;
 		}
 	}
 
