@@ -253,8 +253,11 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			 if (!final_check) {			/* executing function code */
 				/* check address */
 				if (ejtag_info->pa_addr != (MIPS32_PRACC_TEXT + code_count * 4)) {
-					LOG_DEBUG("reading at unexpected address %" PRIx32 ", expected %x",
-							ejtag_info->pa_addr, MIPS32_PRACC_TEXT + code_count * 4);
+					LOG_DEBUG("reading at unexpected address %" PRIx32 ", expected %x last_instr:0x%08x count:%d max_cnt:%d",
+							ejtag_info->pa_addr, MIPS32_PRACC_TEXT + code_count * 4, instr, code_count, ctx->code_count);
+					for (int ii = 0; ii < ctx->code_count; ii++) {
+						LOG_DEBUG("history instr[%d]:0x%08x", ii, ctx->pracc_list[ii]);
+					}
 
 					/* restart code execution only in some cases */
 					if (code_count == 1 && ejtag_info->pa_addr == MIPS32_PRACC_TEXT && restart_count == 0) {
@@ -733,7 +736,7 @@ exit:
  * The line size is obtained with the rdhwr SYNCI_Step in release 2 or from cp0 config 1 register in release 1.
  */
 static int mips32_pracc_synchronize_cache(struct mips_ejtag *ejtag_info,
-					 uint32_t start_addr, uint32_t end_addr, int cached, int rel)
+					 uint32_t start_addr, uint32_t end_addr, int cached, enum mips32_isa_version rel)
 {
 	struct pracc_queue_info ctx = {.max_code = 256 * 2 + 5};
 	pracc_queue_init(&ctx);
@@ -742,7 +745,7 @@ static int mips32_pracc_synchronize_cache(struct mips_ejtag *ejtag_info,
 
 	/** Find cache line size in bytes */
 	uint32_t clsiz;
-	if (rel) {	/* Release 2 (rel = 1) */
+	if (rel == MIPS32_ISA_RELEASE2) {	/* Release 2 (rel = 1) */
 		pracc_add(&ctx, 0, MIPS32_LUI(15, PRACC_UPPER_BASE_ADDR));			/* $15 = MIPS32_PRACC_BASE_ADDR */
 
 		pracc_add(&ctx, 0, MIPS32_RDHWR(8, MIPS32_SYNCI_STEP));			/* load synci_step value to $8 */
@@ -800,7 +803,7 @@ static int mips32_pracc_synchronize_cache(struct mips_ejtag *ejtag_info,
 			pracc_add(&ctx, 0, MIPS32_LUI(15, upper_base_addr));
 			last_upper_base_addr = upper_base_addr;
 		}
-		if (rel)
+		if ((rel == MIPS32_ISA_RELEASE2) || (rel == MIPS32_ISA_RELEASE2_INGENIC_FORBID_RDHWR))
 			pracc_add(&ctx, 0, MIPS32_SYNCI(LOWER16(start_addr), 15));		/* synci instruction, offset($15) */
 
 		else {
@@ -979,11 +982,14 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 		if ((cached == CCA_IAPTIV_CWBE) || (cached == CCA_IAPTIV_CWB) || (cached == CCA_WB)) {
 			uint32_t start_addr = addr;
 			uint32_t end_addr = addr + count * size;
-			uint32_t rel = (conf & MIPS32_CONFIG0_AR_MASK) >> MIPS32_CONFIG0_AR_SHIFT;
-			if (rel > 1) {
+			enum mips32_isa_version rel = (enum mips32_isa_version)((conf & MIPS32_CONFIG0_AR_MASK) >> MIPS32_CONFIG0_AR_SHIFT);
+			if (rel > MIPS32_ISA_RELEASE2) {
 				LOG_DEBUG("Unknown release in cache code");
 				return ERROR_FAIL;
 			}
+			/* Ingenic Xburst1 is not support RDHWR, so we can not use it get CACHE_LINE_SIZE in mips32_pracc_synchronize_cache 
+                Ingenic Xburst2 is support RDHWR, but we don't need to use it for more robustness */
+		    if ((cpuType == MIPS_INGENIC_XBURST1) || (cpuType == MIPS_INGENIC_XBURST2)) rel = MIPS32_ISA_RELEASE2_INGENIC_FORBID_RDHWR;
 			retval = mips32_pracc_synchronize_cache(ejtag_info, start_addr, end_addr, cached, rel);
 		}
 	}

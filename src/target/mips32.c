@@ -1192,6 +1192,9 @@ uint32_t DetermineCpuTypeFromPrid(uint32_t prid, uint32_t config, uint32_t confi
 	uint32_t cpuType;
 
 	/* Determine CPU type from PRID. */
+	if (((prid >> 16) & 0xf0) == 0xd0) {
+		return cpuType = MIPS_INGENIC_XBURST1;
+	}
 	if (((prid >> 16) & 0xff) == 0x13) {
 		/* Ingenic */
 		switch ((prid >> 13) & 0x7) {

@@ -218,6 +218,12 @@ enum mips32_isa_mode {
 	MIPS32_ISA_MIPS16E = 1,
 };
 
+enum mips32_isa_version {
+	MIPS32_ISA_RELEASE1 = 0,
+	MIPS32_ISA_RELEASE2 = 1,
+	MIPS32_ISA_RELEASE2_INGENIC_FORBID_RDHWR = 2,
+};
+
 enum micro_mips_enabled {
 	MIPS32_ONLY = 0,
 	MICRO_MIPS_ONLY = 1,
