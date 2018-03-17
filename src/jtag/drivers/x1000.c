@@ -98,7 +98,7 @@ static void x1000_write(int tck, int tms, int tdi)
 {
 	//uint32_t set = tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;		//mod
 	//uint32_t clear = !tck<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;	//mod
-	port_status = port_status & ~(1<<tck_gpio | 1<<tms_gpio | 1<<tdi_gpio) | tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
+	port_status = (port_status & ~(1<<tck_gpio | 1<<tms_gpio | 1<<tdi_gpio)) | tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
 
 	//PDPAT0S = set;							//mod
 	//PDPAT0C = clear;							//mod
@@ -117,13 +117,13 @@ static void x1000_reset(int trst, int srst)					//mod
 	if (trst_gpio > 0) {							//mod
 		//set |= !trst<<trst_gpio;					//mod
 		//clear |= trst<<trst_gpio;					//mod
-		port_status = port_status & ~(1<<trst_gpio) | !trst<<trst_gpio;
+		port_status = (port_status & ~(1<<trst_gpio)) | !trst<<trst_gpio;
 	}									//mod
 
 	if (srst_gpio > 0) {							//mod
 		//set |= !srst<<srst_gpio;					//mod
 		//clear |= srst<<srst_gpio;					//mod
-		port_status = port_status & ~(1<<srst_gpio) | !srst<<srst_gpio;
+		port_status = (port_status & ~(1<<srst_gpio)) | !srst<<srst_gpio;
 	}									//mod
 
 	//PDPAT0S = set;							//mod

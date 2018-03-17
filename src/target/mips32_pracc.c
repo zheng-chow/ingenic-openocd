@@ -123,7 +123,6 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 static int try_wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 {
     uint32_t ejtag_ctrl;
-    long long then = timeval_ms();
 
     /* wait for the PrAcc to become "1" */
     mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);

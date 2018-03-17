@@ -279,7 +279,6 @@ int mips_common_poll(struct target *target)
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl;
-    uint32_t ejtag_addr = 0;
 	enum target_state prev_target_state = target->state;
 
 	/*	toggle to another core is done by gdb as follow */
