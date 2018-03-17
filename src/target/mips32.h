@@ -728,6 +728,7 @@ struct mips32_algorithm {
 
 //CPU types
 //NOTE!	 If any cores added, must also add in mdi/mdi_internal.c
+//TODE: where is mdi/mdi_internal.c ?????
 //CPU TYPES
 #define MIPS_CORE_4K   0x0000
 #define MIPS_CORE_4KE  0x0100
@@ -751,6 +752,7 @@ struct mips32_algorithm {
 #define MIPS_CORE_5KE	0x4000000
 #define MIPS_CORE_P5600 0x8000000
 #define MIPS_CORE_I5500 0x10000000
+#define MIPS_CORE_INGENIC       0x40000000
 
 #define MIPS_CORE_MASK 0xFFFFFF00
 #define MIPS_VARIANT_MASK 0x00FF
@@ -810,6 +812,8 @@ typedef enum {
    MIPS_INTERAPTIV_CM =0x0002 | MIPS_CORE_INTERAPTIV,
    MIPS_P5600 = MIPS_CORE_P5600,
    MIPS_I5500 = MIPS_CORE_I5500,
+   MIPS_INGENIC_XBURST1 = 0x0000 | MIPS_CORE_INGENIC,
+   MIPS_INGENIC_XBURST2 = 0x0001 | MIPS_CORE_INGENIC,
 } CPUTYPE;
 
 #define MMU_TLB 1
