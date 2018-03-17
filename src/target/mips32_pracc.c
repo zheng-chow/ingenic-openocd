@@ -101,6 +101,11 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 			return retval;
 		}
 
+		if ((ejtag_ctrl & EJTAG_CTRL_BRKST) == 0) {
+			LOG_DEBUG("EJTAG_CTRL_BRKST = 0 when wait for pracc rw");
+			//return ERROR_JTAG_DEVICE_ERROR;
+		}
+
 		if (ejtag_ctrl & EJTAG_CTRL_PRACC)
 			break;
 
@@ -113,6 +118,40 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 
 	*ctrl = ejtag_ctrl;
 	return ERROR_OK;
+}
+
+static int try_wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
+{
+    uint32_t ejtag_ctrl;
+    long long then = timeval_ms();
+
+    /* wait for the PrAcc to become "1" */
+    mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+
+    ejtag_ctrl = ejtag_info->ejtag_ctrl;
+    int retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
+    if (retval != ERROR_OK) {
+        LOG_DEBUG("mips_ejtag_drscan_32 Failed");
+        return retval;
+    }
+
+    *ctrl = ejtag_ctrl;
+    return ERROR_OK;
+}
+
+static int mips32_pracc_try_read_ctrl_addr(struct mips_ejtag *ejtag_info)
+{
+    int retval = try_wait_for_pracc_rw(ejtag_info, &ejtag_info->pa_ctrl);
+    if (retval != ERROR_OK) {
+        LOG_DEBUG("try_wait_for_pracc_rw failed");
+        return retval;
+    }
+
+    mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+    ejtag_info->pa_addr = 0;
+    retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_info->pa_addr);
+
+    return retval;
 }
 
 /* Shift in control and address for a new processor access, save them in ejtag_info */
@@ -330,6 +369,33 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 
 		if (instr == MIPS32_DRET) {	/* after leaving debug mode nothing to do */
 			LOG_DEBUG("MIPS32_DRET executed");
+            while(1) {
+                retval = mips32_pracc_try_read_ctrl_addr(ejtag_info);               /* update current pa info: control and address */
+                if (retval != ERROR_OK) {
+                    LOG_DEBUG("mips32_pracc_try_read_ctrl_addr failed");
+                    return retval;
+                }
+                LOG_DEBUG("dret BRKST:0x%08x PRACC:0x%08x addr:0x%08x",
+                ejtag_info->pa_ctrl & EJTAG_CTRL_BRKST, ejtag_info->pa_ctrl & EJTAG_CTRL_PRACC, ejtag_info->pa_addr);
+                if (((ejtag_info->pa_ctrl & EJTAG_CTRL_BRKST) == 0) ||
+                    ((ejtag_info->pa_ctrl & EJTAG_CTRL_PRACC) && (ejtag_info->pa_addr == MIPS32_PRACC_TEXT))) {
+                        break;
+                } else if ((ejtag_info->pa_addr != MIPS32_PRACC_TEXT) && (ejtag_info->pa_ctrl & EJTAG_CTRL_PRACC)) {
+                    LOG_DEBUG("mips_ejtag_exit_debug fill nop addr:0x%08x BRKST:0x%08x pracc:0x%08x count:%d",
+                        ejtag_info->pa_addr,
+                        ejtag_info->pa_ctrl & EJTAG_CTRL_BRKST, ejtag_info->pa_ctrl & EJTAG_CTRL_PRACC, code_count);
+                    code_count++;
+                    /* Send instruction out */
+                    mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+                    mips_ejtag_drscan_32_out(ejtag_info, MIPS32_NOP);
+                    /* finish processor access, let the processor eat! */
+                    retval = mips32_pracc_finish(ejtag_info);
+                    if ((retval != ERROR_OK) || (code_count > 64)) {
+                        LOG_DEBUG("mips32_pracc_finish failed");
+                        return retval;
+                    }
+                }
+            }
 			return ERROR_OK;
 		}
 
