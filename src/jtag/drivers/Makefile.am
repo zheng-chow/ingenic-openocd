@@ -122,6 +122,9 @@ endif
 if BCM2835GPIO
 DRIVERFILES += bcm2835gpio.c
 endif
+if X1000
+DRIVERFILES += x1000.c
+endif
 
 if OPENJTAG
 DRIVERFILES += openjtag.c

@@ -465,6 +465,18 @@ case "${host_cpu}" in
     ;;
 esac
 
+case "${host_cpu}" in
+  mips*)
+    AC_ARG_ENABLE([x1000],
+      AS_HELP_STRING([--enable-x1000], [Enable building support for bitbanging on Ingenic X1000 processors]),
+      [build_x1000=$enableval], [build_x1000=no])
+    ;;
+
+  *)
+    build_x1000=no
+    ;;
+esac
+
 AC_ARG_ENABLE([gw16012],
   AS_HELP_STRING([--enable-gw16012], [Enable building support for the Gateworks GW16012 JTAG Programmer]),
   [build_gw16012=$enableval], [build_gw16012=no])
@@ -672,6 +684,13 @@ if test $build_bcm2835gpio = yes; then
   AC_DEFINE([BUILD_BCM2835GPIO], [1], [1 if you want bcm2835gpio.])
 else
   AC_DEFINE([BUILD_BCM2835GPIO], [0], [0 if you don't want bcm2835gpio.])
+fi
+
+if test $build_x1000 = yes; then
+  build_bitbang=yes
+  AC_DEFINE([BUILD_X1000], [1], [1 if you want x1000.])
+else
+  AC_DEFINE([BUILD_X1000], [0], [0 if you don't want x1000.])
 fi
 
 if test x$parport_use_ppdev = xyes; then
@@ -1180,6 +1199,7 @@ AM_CONDITIONAL([ZY1000_MASTER], [test $build_zy1000_master = yes])
 AM_CONDITIONAL([IOUTIL], [test $build_ioutil = yes])
 AM_CONDITIONAL([AT91RM9200], [test $build_at91rm9200 = yes])
 AM_CONDITIONAL([BCM2835GPIO], [test $build_bcm2835gpio = yes])
+AM_CONDITIONAL([X1000], [test $build_x1000 = yes])
 AM_CONDITIONAL([BITBANG], [test $build_bitbang = yes])
 AM_CONDITIONAL([FT2232_LIBFTDI], [test $build_ft2232_libftdi = yes])
 AM_CONDITIONAL([FT2232_DRIVER], [test $build_ft2232_ftd2xx = yes -o $build_ft2232_libftdi = yes])
