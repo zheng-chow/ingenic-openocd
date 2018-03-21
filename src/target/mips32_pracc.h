@@ -50,6 +50,7 @@ struct pracc_queue_info {
 	int code_count;
 	int store_count;
 	uint32_t *pracc_list;	/* Code and store addresses */
+	uint32_t *expected_list;	/* Code unexpected num*/
 };
 int mips32_pracc_invalidate_cache(struct target *, struct mips_ejtag *, int cache);
 void pracc_queue_init(struct pracc_queue_info *ctx);

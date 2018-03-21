@@ -232,6 +232,7 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 	bool final_check = 0;		/* set to 1 if in final checks after function code shifted out */
 	bool pass = 0;			/* to check the pass through pracc text after function code sent */
 	int retval;
+	int index;
 
 	while (1) {
 		if (restart) {
@@ -288,14 +289,16 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			store_pending--;
 
 		} else {					/* read/fetch access */
+			index = (ejtag_info->pa_addr - MIPS32_PRACC_TEXT) / 4;
 			 if (!final_check) {			/* executing function code */
 				/* check address */
-				if (ejtag_info->pa_addr != (MIPS32_PRACC_TEXT + code_count * 4)) {
-					LOG_DEBUG("reading at unexpected address %" PRIx32 ", expected %x last_instr:0x%08x count:%d max_cnt:%d",
-							ejtag_info->pa_addr, MIPS32_PRACC_TEXT + code_count * 4, instr, code_count, ctx->code_count);
-					for (int ii = 0; ii < ctx->code_count; ii++) {
-						LOG_DEBUG("history instr[%d]:0x%08x", ii, ctx->pracc_list[ii]);
-					}
+				if ((index > ctx->code_count) || ((ejtag_info->pa_addr != MIPS32_PRACC_TEXT) && (code_count == 0))) {
+					if (code_count == 0)
+						LOG_DEBUG("reading at unexpected address %" PRIx32 ", expected %x last_instr:0x%08x count:%d code_cnt:%d",
+							ejtag_info->pa_addr, MIPS32_PRACC_TEXT, instr, code_count, ctx->code_count);
+					else
+						LOG_DEBUG("reading at unexpected address %" PRIx32 " index:%d it is not in pracc_list count:%d code_cnt:%d",
+							ejtag_info->pa_addr, index, code_count, ctx->code_count);
 
 					/* restart code execution only in some cases */
 					if (code_count == 1 && ejtag_info->pa_addr == MIPS32_PRACC_TEXT && restart_count == 0) {
@@ -304,6 +307,7 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 						code_count = 0;
 						continue;
 					} else if (code_count < 2) {
+						LOG_DEBUG("restarting, without clean jump");
 						restart = 1;
 						continue;
 					}
@@ -311,16 +315,19 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 					return ERROR_JTAG_DEVICE_ERROR;
 				}
 				/* check for store instruction at dmseg */
-				uint32_t store_addr = ctx->pracc_list[ctx->max_code + code_count];
+				uint32_t store_addr = ctx->pracc_list[ctx->max_code + index];
 				if (store_addr != 0) {
 					if (store_addr > max_store_addr)
 						max_store_addr = store_addr;
 					store_pending++;
 				}
 
-				instr = ctx->pracc_list[code_count++];
-				if (code_count == ctx->code_count)	/* last instruction, start final check */
+				instr = ctx->pracc_list[index];
+				code_count++;
+				if (index == (ctx->code_count - 1)) {/* last instruction, start final check, beacuse the cnt+1 in add_pracc whit legacy mode */
 					final_check = 1;
+					code_count = 0;
+				}
 
 			 } else {	/* final check after function code shifted out */
 					/* check address */
@@ -334,15 +341,10 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 						LOG_DEBUG("unexpected second pass through pracc text");
 						return ERROR_JTAG_DEVICE_ERROR;
 					}
-				} else {
-					if (ejtag_info->pa_addr != (MIPS32_PRACC_TEXT + code_count * 4)) {
-						LOG_DEBUG("unexpected read address in final check: %" PRIx32 ", expected: %" PRIx32,
-							  ejtag_info->pa_addr, MIPS32_PRACC_TEXT + code_count * 4);
-						return ERROR_JTAG_DEVICE_ERROR;
-					}
 				}
+
 				if (!pass) {
-					if ((code_count - ctx->code_count) > 64) {	 /* allow max 2 instruction delay slot */
+					if (code_count > 64) {	 /* allow max 2 instruction delay slot */
 						LOG_DEBUG("failed to jump back to pracc text");
 						return ERROR_JTAG_DEVICE_ERROR;
 					}
@@ -448,16 +450,26 @@ inline void pracc_queue_init(struct pracc_queue_info *ctx)
 		LOG_ERROR("Out of memory");
 		ctx->retval = ERROR_FAIL;
 	}
+
+	ctx->expected_list = malloc(2 * ctx->max_code * sizeof(uint32_t));
+	if (ctx->pracc_list == NULL) {
+		LOG_ERROR("Out of memory");
+		ctx->retval = ERROR_FAIL;
+	}
 }
 
 unsigned int dump = 0;
 inline void pracc_add(struct pracc_queue_info *ctx, uint32_t addr, uint32_t instr)
 {
 	ctx->pracc_list[ctx->max_code + ctx->code_count] = addr;
-	ctx->pracc_list[ctx->code_count++] = instr;
+	ctx->pracc_list[ctx->code_count] = instr;
+
+	ctx->expected_list[ctx->code_count] = ctx->code_count;
 
 	if (dump == 1)
-		LOG_DEBUG("addr:0x%8.8x, data: 0x%8.8x", addr, instr);
+		LOG_DEBUG("addr:0x%8.8x, data:0x%8.8x, num:%d", addr, instr, ctx->code_count);
+
+	ctx->code_count++;
 	
 	if (addr)
 		ctx->store_count++;
@@ -469,6 +481,8 @@ inline void pracc_queue_free(struct pracc_queue_info *ctx)
 		LOG_ERROR("Internal error, code count: %d > max code: %d", ctx->code_count, ctx->max_code);
 	if (ctx->pracc_list != NULL)
 		free(ctx->pracc_list);
+	if (ctx->expected_list != NULL)
+		free(ctx->expected_list);
 }
 
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *buf)
@@ -1164,7 +1178,7 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 	mips32_pracc_cp0_read(ejtag_info, &conf, 16, 1);
 
 	switch (cache) {
-		case INST:
+		case INSTNOWB:
 			/* Extract cache line size */
 			bpl	 = (conf >> CFG1_ILSHIFT) & 7; /* bit 21:19 */
 
@@ -1181,7 +1195,6 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 			break;
 
 		case DATA:
-		case ALLNOWB:
 		case DATANOWB:
 			/* Extract cache line size */
 			bpl	 = (conf >> CFG1_DLSHIFT) & 7; /* bit 12:10 */
@@ -1210,6 +1223,8 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 			break;
 
 		case L2:
+		case L2NOWB:
+			LOG_DEBUG("mips32_pracc_invalidate_cache L2 invalidate is not come true");
 			break;
 
 	}
@@ -1219,7 +1234,7 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 		pracc_add(&ctx, 0, done[i]);
 
 	/* Start code execution */
-	ctx.code_count = 0; /* Disable pracc access verification due BNZ instruction */
+	//ctx.code_count = 0; /* Disable pracc access verification due BNZ instruction */
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
 	if (ctx.retval != ERROR_OK)
 		LOG_DEBUG("mips32_pracc_queue_exec failed - ctx.retval: %d", ctx.retval);

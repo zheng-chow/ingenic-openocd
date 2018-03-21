@@ -49,12 +49,14 @@ static const char *mips_isa_strings[] = {
 static const struct {
 	unsigned option;
 	const char *arg;
-} invalidate_cmd[5] = {
+} invalidate_cmd[7] = {
 	{ ALL, "all", },
-	{ INST, "inst", },
+	{ INSTNOWB, "instnowb", },
 	{ DATA, "data", },
 	{ ALLNOWB, "allnowb", },
 	{ DATANOWB, "datanowb", },
+	{ L2, "l2", },
+	{ L2NOWB, "l2nowb", },
 };
 
 static const struct {
@@ -2469,8 +2471,10 @@ COMMAND_HANDLER(mips32_handle_invalidate_cache_command)
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	int i = 0;
-
-	char *cache_msg[] = {"all", "instr", "data", "L23", NULL, NULL, NULL};
+        uint32_t conf = 0;
+        uint32_t prid;
+        uint32_t config1;
+        uint32_t cpuType;
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
@@ -2482,68 +2486,88 @@ COMMAND_HANDLER(mips32_handle_invalidate_cache_command)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
+        if ((retval = mips32_pracc_cp0_read(ejtag_info, &conf, 16, 0))!= ERROR_OK)
+                return retval;
+
+        /* Read PRID registers */
+        if ((retval = mips32_pracc_cp0_read(ejtag_info, &prid, 15, 0)) != ERROR_OK)
+                return retval;
+
+        /* Read Config1 registers */
+        if ((retval = mips32_pracc_cp0_read(ejtag_info, &config1, 16, 1))!= ERROR_OK)
+                return retval;
+
+        /* Get core type */
+        cpuType = DetermineCpuTypeFromPrid(prid, conf, config1);
+
 	if (CMD_ARGC == 1) {
-		/* PARSE command options - all/inst/data/allnowb/datanowb */
-		for (i = 0; i < 5 ; i++) {
+		for (i = 0; i < 7 ; i++) {
 			if (strcmp(CMD_ARGV[0], invalidate_cmd[i].arg) == 0) {
 				switch (invalidate_cmd[i].option) {
 					case ALL:
-						LOG_INFO("clearing %s cache", cache_msg[1]);
-						/* For this case - ignore any errors checks, just in case core has no instruction cache */
-						mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[1].option);
+						LOG_INFO("clearing l1 instr cache, no writeback");
+						mips32_pracc_invalidate_cache(target, ejtag_info, INSTNOWB);
 
-						/* TODO: Add L2 code */
-						/* LOG_INFO("clearing %s cache", cache_msg[3]); */
-						/* retval = mips32_pracc_invalidate_cache(target, ejtag_info, L2); */
-						/* if (retval != ERROR_OK) */
-						/*	return retval; */
+						LOG_INFO("clearing l1 data cache, writeback");
+						mips32_pracc_invalidate_cache(target, ejtag_info, DATA);
 
-						LOG_INFO("clearing %s cache", cache_msg[2]);
-						/* For this case - ignore any errors checks, just in case core has no data cache */
-						mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[2].option);
-
+						if (cpuType != MIPS_INGENIC_XBURST1) {
+							LOG_INFO("clearing l2 cache, writeback");
+							mips32_pracc_invalidate_cache(target, ejtag_info, L2);
+						}
 						break;
 
-					case INST:
-						LOG_INFO("clearing %s cache", cache_msg[invalidate_cmd[i].option]);
-						retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[i].option);
-						if (retval != ERROR_OK)
-							return retval;
+					case INSTNOWB:
+						LOG_INFO("clearing l1 instr cache, no writeback");
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, INSTNOWB);
 
 						break;
 
 					case DATA:
-						LOG_INFO("clearing %s cache", cache_msg[invalidate_cmd[i].option]);
-						retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[i].option);
-						if (retval != ERROR_OK)
-							return retval;
+						LOG_INFO("clearing l1 data cache, writeback");
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, DATA);
 
 						break;
 
 					case ALLNOWB:
-						LOG_INFO("invalidating %s cache", cache_msg[invalidate_cmd[1].option]);
-						retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[1].option);
-						if (retval != ERROR_OK)
-							return retval;
+                                                LOG_INFO("clearing l1 instr cache, no writeback");
+                                                mips32_pracc_invalidate_cache(target, ejtag_info, INSTNOWB);
 
-						/* TODO: Add L2 code */
-						/* LOG_INFO("invalidating %s cache no writeback", cache_msg[3]); */
-						/* retval = mips32_pracc_invalidate_cache(target, ejtag_info, L2); */
-						/* if (retval != ERROR_OK) */
-						/*	return retval; */
+                                                LOG_INFO("clearing l1 data cache, no writeback");
+                                                mips32_pracc_invalidate_cache(target, ejtag_info, DATANOWB);
 
-						LOG_INFO("invalidating %s cache - no writeback", cache_msg[2]);
-						retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[2].option);
-						if (retval != ERROR_OK)
-							return retval;
-
+						if (cpuType != MIPS_INGENIC_XBURST1) {
+                                                	LOG_INFO("clearing l2 cache, no writeback");
+                                                	mips32_pracc_invalidate_cache(target, ejtag_info, L2NOWB);
+						}
 						break;
 
 					case DATANOWB:
-						LOG_INFO("invalidating %s cache - no writeback", cache_msg[2]);
-						retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[i].option);
-						if (retval != ERROR_OK)
-							return retval;
+                                                LOG_INFO("clearing l1 data cache, no writeback");
+                                                mips32_pracc_invalidate_cache(target, ejtag_info, DATANOWB);
+
+						break;
+
+					case L2:
+						if (cpuType == MIPS_INGENIC_XBURST1) {
+							LOG_DEBUG("Ingenic Xburst1 is not support clear l2 alone");
+							return ERROR_FAIL;
+						}
+						else {
+                                                	LOG_INFO("clearing l2 cache, writeback");
+                                                	mips32_pracc_invalidate_cache(target, ejtag_info, L2);
+						}
+						break;
+
+					case L2NOWB:
+						if (cpuType == MIPS_INGENIC_XBURST1) {
+							LOG_DEBUG("Ingenic Xburst1 is not support clear l2 alone");
+							return ERROR_FAIL;
+						}
+						else {
+                                                	LOG_INFO("clearing l2 cache, no writeback");
+                                                	mips32_pracc_invalidate_cache(target, ejtag_info, L2NOWB);
+						}
 						break;
 
 					default:
@@ -2556,33 +2580,9 @@ COMMAND_HANDLER(mips32_handle_invalidate_cache_command)
 					return ERROR_FAIL;
 				else
 					break;
-			} else {
-				if (i >= DATANOWB) {
-					LOG_ERROR("Invalid command argument '%s' not found", CMD_ARGV[0]);
-					return ERROR_COMMAND_SYNTAX_ERROR;
-				}
 			}
-
 		}
 	}
-//else {
-//		/* default is All */
-//		LOG_INFO("invalidating %s cache", cache_msg[1]);
-//		retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[1].option);
-//		if (retval != ERROR_OK)
-//			return retval;
-
-		/* TODO: Add L2 code */
-		/* LOG_INFO("invalidating %s cache", cache_msg[3]); */
-		/* retval = mips32_pracc_invalidate_cache(target, ejtag_info, L2); */
-		/* if (retval != ERROR_OK) */
-		/*	return retval; */
-
-//		LOG_INFO("invalidating %s cache", cache_msg[2]);
-//		retval = mips32_pracc_invalidate_cache(target, ejtag_info, invalidate_cmd[2].option);
-//		if (retval != ERROR_OK)
-//			return retval;
-//	}
 
 	return ERROR_OK;
 }
@@ -2760,7 +2760,7 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.handler = mips32_handle_invalidate_cache_command,
 		.mode = COMMAND_EXEC,
 		.help = "Invalidate either or both the instruction and data caches.",
-		.usage = "all|inst|data|allnowb|datanowb",
+		.usage = "all|instnowb|data|l2|allnowb|datanowb|l2nowb",
 	},
 	{
 		.name = "scan_delay",

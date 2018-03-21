@@ -353,11 +353,12 @@ struct mips32_algorithm {
 #define ra	31
 
 #define ALL 0
-#define INST 1
+#define INSTNOWB 1
 #define DATA 2
 #define ALLNOWB 3
 #define DATANOWB 4
 #define L2 5
+#define L2NOWB 6
 
 /*
  * MIPS32 Config0 Register	(CP0 Register 16, Select 0)
