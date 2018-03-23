@@ -3071,13 +3071,19 @@ COMMAND_HANDLER(handle_dump_image_command)
 	struct duration bench;
 	struct target *target = get_current_target(CMD_CTX);
 
+	//static uint32_t BUF_SIZE_1KB  = 1024;
+	//static uint32_t BUF_SIZE_1MB  = 1024 * BUF_SIZE_1KB;
+	//static uint32_t BUF_SIZE_10MB = 1024 * BUF_SIZE_1MB;
+	static uint32_t BUF_SIZE = 16384;
+
 	if (CMD_ARGC != 3)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], address);
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], size);
 
-	uint32_t buf_size = (size > 4096) ? 4096 : size;
+	uint32_t buf_size = (size > BUF_SIZE) ? BUF_SIZE : size;
+	LOG_DEBUG("size:%d", buf_size);
 	buffer = malloc(buf_size);
 	if (!buffer)
 		return ERROR_FAIL;

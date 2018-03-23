@@ -644,7 +644,7 @@ struct mips32_algorithm {
 #define MIPS32_R_INST(opcode, rs, rt, rd, shamt, funct) \
 	(((opcode) << 26) | ((rs) << 21) | ((rt) << 16) | ((rd) << 11) | ((shamt) << 6) | (funct))
 #define MIPS32_I_INST(opcode, rs, rt, immd) \
-	(((opcode) << 26) | ((rs) << 21) | ((rt) << 16) | (immd))
+	(((opcode) << 26) | ((rs) << 21) | ((rt) << 16) | ((immd) & 0xffff))
 
 #define MIPS32_TLB_INST(opcode, co, rs, rt)						\
 	(((opcode) << 26) | ((co) << 25) | ((rs) << 6) | (rt))

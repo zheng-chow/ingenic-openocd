@@ -52,12 +52,19 @@ struct pracc_queue_info {
 	uint32_t *pracc_list;	/* Code and store addresses */
 	uint32_t *expected_list;	/* Code unexpected num*/
 };
+
+enum quene_exec_mode {
+        LEGACY_MODE = 0,
+        FAST_MODE = 1,
+	SERIES_WRITE_MODE = 2,
+};
+
 int mips32_pracc_invalidate_cache(struct target *, struct mips_ejtag *, int cache);
 void pracc_queue_init(struct pracc_queue_info *ctx);
 void pracc_add(struct pracc_queue_info *ctx, uint32_t addr, uint32_t instr);
 void pracc_queue_free(struct pracc_queue_info *ctx);
-int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info,
-							struct pracc_queue_info *ctx, uint32_t *buf);
+int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *buf, enum quene_exec_mode mode);
+int mips32_pracc_series_write_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *param_out);
 
 int mips32_pracc_read_mem(struct mips_ejtag *ejtag_info,
 						  uint32_t addr, int size, int count, void *buf, int cputype);

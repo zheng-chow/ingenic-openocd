@@ -188,6 +188,8 @@ struct mips_ejtag {
 	int fast_access_save;
 	uint32_t reg8;
 	uint32_t reg9;
+	uint32_t reg10;
+	uint32_t reg11;
 	unsigned scan_delay;
 	int mode;
 	uint32_t pa_ctrl;
@@ -222,6 +224,7 @@ int mips_ejtag_get_idcode(struct mips_ejtag *ejtag_info, uint32_t *idcode);
 void mips_ejtag_add_scan_96(struct mips_ejtag *ejtag_info,
 			    uint32_t ctrl, uint32_t data, uint8_t *in_scan_buf);
 void mips_ejtag_drscan_32_out(struct mips_ejtag *ejtag_info, uint32_t data);
+int mips_ejtag_drscan_19(struct mips_ejtag *ejtag_info, uint32_t *data);
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data);
 void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data);
 int mips_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint32_t *data);
