@@ -1497,7 +1497,7 @@ exit:
 	pracc_queue_free(&ctx);
 
 	for (int i = 0; i < MIPS32NUMCOREREGS; i++) {
-		//LOG_DEBUG("mips32_pracc_read_regs regs[%d] == 0x%08x", i, regs[i]);
+		LOG_DEBUG("mips32_pracc_read_regs regs[%d] == 0x%08x", i, regs[i]);
 		globle_core_regs[i] = regs[i];
 	}
 
