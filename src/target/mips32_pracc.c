@@ -1317,6 +1317,7 @@ exit:
 
 int mips32_pracc_write_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 {
+	LOG_DEBUG("mips32_pracc_write_regs");
 	static const uint32_t cp0_write_code[] = {
 		MIPS32_MTC0(1, 12, 0),							/* move $1 to status */
 		MIPS32_MTLO(1),									/* move $1 to lo */
@@ -1371,12 +1372,24 @@ int mips32_pracc_write_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	ejtag_info->reg11 = regs[11];
 exit:
 	pracc_queue_free(&ctx);
+	for (int i = 0; i < MIPS32NUMCOREREGS; i++) {
+		LOG_DEBUG("mips32_pracc_write_regs regs[%d] == 0x%08x", i, regs[i]);
+		if (globle_core_regs[i] != regs[i]) {
+			//for (int j = 0; j < MIPS32NUMCOREREGS; j++) {
+			//	LOG_DEBUG("mips32_pracc_read_regs regs[%d] == 0x%08x", j, globle_core_regs[j]);
+			//	LOG_DEBUG("mips32_pracc_write_regs regs[%d] == 0x%08x", j, regs[j]);
+			//}
+			LOG_DEBUG("mips32_pracc_write_regs error i=%d", i);
+			//return ERROR_FAIL;
+		}
+	}
 	return ctx.retval;
 }
 
 int mips32_pracc_write_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 {
 
+	LOG_DEBUG("mips32_pracc_write_fpu_regs");
 	struct pracc_queue_info ctx = {.max_code = 110};
 
 	pracc_queue_init(&ctx);
@@ -1482,6 +1495,12 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	ejtag_info->reg11 = regs[11];
 exit:
 	pracc_queue_free(&ctx);
+
+	for (int i = 0; i < MIPS32NUMCOREREGS; i++) {
+		//LOG_DEBUG("mips32_pracc_read_regs regs[%d] == 0x%08x", i, regs[i]);
+		globle_core_regs[i] = regs[i];
+	}
+
 	return ctx.retval;
 }
 
@@ -1529,6 +1548,7 @@ exit:
 
 int mips32_pracc_read_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 {
+	LOG_DEBUG("mips32_pracc_read_fpu_regs");
 	int i;
 	struct pracc_queue_info ctx = {.max_code = 80};
 
