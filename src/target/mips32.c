@@ -2734,17 +2734,16 @@ COMMAND_HANDLER(mips32_handle_scan_delay_command)
 
 COMMAND_HANDLER(mips32_handle_run_code)
 {
-        //struct target *target = get_current_target(CMD_CTX);
-        //struct mips32_common *mips32 = target_to_mips32(target);
-        //struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
-
-	uint8_t *buffer;
+        struct target *target = get_current_target(CMD_CTX);
+        struct mips32_common *mips32 = target_to_mips32(target);
+        struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	uint8_t *buffer = NULL;
 	size_t buf_cnt;
 	uint32_t image_size = 0;
 	struct image image;
 	int retval = ERROR_OK;
-
-	//struct target *target = get_current_target(CMD_CTX);
+	uint32_t instr;
+	uint32_t length = 0;
 
 	if (CMD_ARGC != 2)
                 return ERROR_COMMAND_SYNTAX_ERROR;
@@ -2752,43 +2751,48 @@ COMMAND_HANDLER(mips32_handle_run_code)
         image.base_address_set = 0;
         image.start_address_set = 0;
 
-	LOG_DEBUG("CMD_ARGV[0]=%s CMD_ARGV[1]=%s", CMD_ARGV[0], CMD_ARGV[0]);
 	if (image_open(&image, CMD_ARGV[0], CMD_ARGV[1]) != ERROR_OK)
 		return ERROR_FAIL;
 
+	if (image.num_sections > 1) {
+		LOG_DEBUG("Can not support section num:%d", image.num_sections);
+		return ERROR_FAIL;
+	}
+	buffer = malloc(image.sections[0].size);
+        if (buffer == NULL) {
+                command_print(CMD_CTX, "error allocating buffer for section (%d bytes)", (int)(image.sections[0].size));
+		return ERROR_FAIL;
+        }
 	for (int i = 0; i < image.num_sections; i++) {
-		buffer = malloc(image.sections[i].size);
-		if (buffer == NULL) {
-			command_print(CMD_CTX, "error allocating buffer for section (%d bytes)", (int)(image.sections[i].size));
-			break;
-		}
-
 		retval = image_read_section(&image, i, 0x0, image.sections[i].size, buffer, &buf_cnt);
 		if (retval != ERROR_OK) {
-			free(buffer);
-			break;
+			goto EXIT;
 		}
-
-		//uint32_t offset = 0;
-		uint32_t length = buf_cnt;
-
-		/* DANGER!!! beware of unsigned comparision here!!! */
-
-		//if ((image.sections[i].base_address + buf_cnt >= min_address) &&
-		//		(image.sections[i].base_address < max_address)) {
-
-			LOG_DEBUG("base_addr:0x%08x length:%d", image.sections[i].base_address, length);
-			for (uint32_t ii = 0; ii < length; ii = ii + 4) {
-				LOG_DEBUG("instr:0x%02x%02x%02x%02x", buffer[ii], buffer[ii + 1], buffer[ii + 2], buffer[ii + 3]);
-			}
-			image_size += length;
-		//}
-
-		free(buffer);
+		length = buf_cnt;
+		if (image.sections[i].base_address != 0xff200000) {
+			LOG_DEBUG("Can not support base_address:0x%08x", image.sections[i].base_address);
+			retval = ERROR_FAIL;
+			goto EXIT;
+		}
+		if (length < 0x200) {
+			LOG_DEBUG("length < 0x200");
+			retval = ERROR_FAIL;
+			goto EXIT;
+		}
+		image_size += length;
 	}
 
-	image_close(&image);
+	struct pracc_queue_info ctx = {.max_code = (length / 4) + 1};
+	pracc_queue_init(&ctx);
+	for (uint32_t j = 0x200; j < length; j = j + 4) {
+	        instr = (buffer[j + 3] << 24) | (buffer[j + 2] << 16) | (buffer[j + 1] << 8) | (buffer[j]);
+	        pracc_add(&ctx, 0, instr);
+	}
+	(void)mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
+	pracc_queue_free(&ctx);
 
+EXIT:	image_close(&image);
+	free(buffer);
 	return retval;
 }
 
