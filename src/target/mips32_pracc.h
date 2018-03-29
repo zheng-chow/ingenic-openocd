@@ -32,16 +32,17 @@
 #define MIPS32_PRACC_FASTDATA_AREA		0xFF200000
 #define MIPS32_PRACC_FASTDATA_SIZE		16
 #define MIPS32_PRACC_BASE_ADDR			0xFF200000
-#define MIPS32_PRACC_TEXT				0xFF200200
+#define MIPS32_PRACC_TEXT			0xFF200200
 #define MIPS32_PRACC_PARAM_OUT			0xFF202000
 
 #define PRACC_UPPER_BASE_ADDR			(MIPS32_PRACC_BASE_ADDR >> 16)
 #define PRACC_OUT_OFFSET			(MIPS32_PRACC_PARAM_OUT - MIPS32_PRACC_BASE_ADDR)
 
-#define MIPS32_FASTDATA_HANDLER_SIZE	0x80
-#define UPPER16(uint32_t)				(uint32_t >> 16)
-#define LOWER16(uint32_t)				(uint32_t & 0xFFFF)
-#define NEG16(v)						(((~(v)) + 1) & 0xFFFF)
+#define MIPS32_FASTDATA_HANDLER_SIZE	        0x80
+#define UPPER16(uint32_t)			(uint32_t >> 16)
+#define LOWER16(uint32_t)			(uint32_t & 0xFFFF)
+#define NEG16(v)				(((~(v)) + 1) & 0xFFFF)
+#define NEG26(v)				(((~(v)) + 1) & 0x3FFFFFF)
 /*#define NEG18(v) (((~(v)) + 1) & 0x3FFFF)*/
 
 struct pracc_queue_info {
