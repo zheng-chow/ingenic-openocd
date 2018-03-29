@@ -1105,6 +1105,37 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 		MIPS32_LUI(t0, 0x8000)					    /* Get a KSeg0 address for cacheops */
 	};
 
+    uint32_t inv_L2_cache[] = {
+
+        	MIPS32_MFC0(t7, 16, 2),						/* read C0_Config2 */
+
+		MIPS32_SRL (t1, t7, CFG2_SSSHIFT),			/* extract SS */
+		MIPS32_ANDI(t1, t1, 0xf),
+		MIPS32_ADDIU(t0, zero, 64),				    /* li t0, 64 */
+		MIPS32_SLLV(t1, t0, t1),					/* D$ Sets per way */
+
+		MIPS32_SRL(t7, t7, CFG2_SASHIFT),			/* extract DA */
+		MIPS32_ANDI(t7, t7, 0xf),
+		MIPS32_ADDIU(t7, t7, 1),
+		MIPS32_MUL(t1, t1, t7),					    /* Total number of sets */
+
+		/* Clear TagLo/TagHi registers */
+		MIPS32_MTC0(zero, C0_TAGLO, 0),				/* write C0_TagLo */
+		MIPS32_MTC0(zero, C0_TAGHI, 0),				/* write C0_TagHi */
+		MIPS32_MTC0(zero, C0_TAGLO, 2),				/* write C0_DTagLo */
+		MIPS32_MTC0(zero, C0_TAGHI, 2),				/* write C0_DTagHi */
+
+		/* Isolate D$ Line Size */
+		MIPS32_MFC0(t7, 16, 2),						/* Re-read C0_Config1 */
+		MIPS32_ADDIU(t0, zero, 2),				    /* li a2, 2 */
+
+		MIPS32_SRL(t7, t7, CFG2_SLSHIFT),			/* extract DL */
+		MIPS32_ANDI(t7, t7, 0xf),
+
+		MIPS32_SLLV(t7, t0, t7),					/* Now have true I$ line size in bytes */
+
+		MIPS32_LUI(t0, 0x8000)					    /* Get a KSeg0 address for cacheops */
+	};
 	uint32_t done[] = {
 		MIPS32_LUI(t7, UPPER16(MIPS32_PRACC_TEXT)),
 		MIPS32_ORI(t7, t7, LOWER16(MIPS32_PRACC_TEXT)),
@@ -1124,7 +1155,12 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 	}
 
 	/* Read Config1 Register to retrieve cache info */
-	mips32_pracc_cp0_read(ejtag_info, &conf, 16, 1);
+	if (cache == INSTNOWB || cache == DATA || cache == DATANOWB) {
+		/* Read Config1 Register to retrieve cache info */
+		mips32_pracc_cp0_read(ejtag_info, &conf, 16, 1);
+	} else if (cache == L2 || cache == L2NOWB){
+		mips32_pracc_cp0_read(ejtag_info, &conf, 16, 2);
+	}
 
 	switch (cache) {
 		case INSTNOWB:
@@ -1173,6 +1209,30 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 
 		case L2:
 		case L2NOWB:
+			/* Extract cache line size */
+			bpl	 = (conf >> CFG2_SLSHIFT) & 16; /* bit 7:4 */
+
+			/* Core configured with L2 cache */
+			if (bpl == 0) {
+				LOG_USER("no data cache configured");
+				ctx.retval = ERROR_OK;
+				goto exit;
+ 			}
+
+			/* Write exit code */
+			for (unsigned i = 0; i < ARRAY_SIZE(inv_L2_cache); i++)
+				pracc_add(&ctx, 0, inv_L2_cache[i]);
+
+			if (cache == L2)
+				pracc_add(&ctx, 0, MIPS32_CACHE(Index_Writeback_Inv_S, 0, t0));
+			else {
+				if ((cache == ALLNOWB) || (cache == L2NOWB))
+					pracc_add(&ctx, 0, MIPS32_CACHE(Index_Store_Tag_S, 0, t0));
+			}
+
+			pracc_add(&ctx, 0, MIPS32_ADDI(t1, t1,NEG16(1)));				// Decrement set counter
+			pracc_add(&ctx, 0, MIPS32_BNE(t1, zero, NEG16(3)));
+			pracc_add(&ctx, 0, MIPS32_ADD(t0, t0, t7));
 			LOG_DEBUG("mips32_pracc_invalidate_cache L2 invalidate is not come true");
 			break;
 
