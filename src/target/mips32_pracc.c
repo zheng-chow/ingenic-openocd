@@ -247,6 +247,7 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		} else {					/* read/fetch access */
 			if ((code_count != 0) && (ejtag_info->pa_addr == MIPS32_PRACC_TEXT) && (final_check == 0)) {
 				final_check = 1;
+				code_count = 0;
 			}
 			if (!final_check) {			/* executing function code */
 				index = (ejtag_info->pa_addr - MIPS32_PRACC_TEXT) / 4;
@@ -274,7 +275,16 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 				}
 			} else {/* final check after function code shifted out */
 				if (store_pending == 0) {
-					if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT) (void)mips32_pracc_clean_text_jump(ejtag_info);
+					if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT) {
+                        			instr = MIPS32_B(NEG16(code_count + 1));
+						do {
+                                        		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+                                        		mips_ejtag_drscan_32_out(ejtag_info, instr);
+                                       			(void)mips32_pracc_finish(ejtag_info);
+                                			instr = MIPS32_NOP;
+							(void)mips32_pracc_read_ctrl_addr(ejtag_info);
+                                		} while(ejtag_info->pa_addr != MIPS32_PRACC_TEXT);
+                        		}
 					return ERROR_OK;
 				} else { // for fix LSU store delay
 					instr = MIPS32_NOP;
@@ -911,6 +921,7 @@ static int mips32_pracc_write_mem_series(struct mips_ejtag *ejtag_info, uint32_t
 
 	int code_count = 0;
 	uint32_t ejtag_ctrl;
+	uint32_t redo_count = 0;
 
 	while(1) {
                 mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
@@ -927,8 +938,10 @@ REDO:		ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
 			}
 			code_count++;
 		} else {
+			redo_count++;
 			LOG_DEBUG("REDO");
-			goto REDO;
+			if (redo_count > 64) break;
+			else goto REDO;
 		}
 	}
 
@@ -951,8 +964,10 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 		LOG_DEBUG("mips32_pracc_write_mem error");
 		retval = ERROR_FAIL;
 	}
-	if (retval != ERROR_OK)
+	retval = mips32_pracc_write_mem_generic(ejtag_info, addr, size, count, buf);
+	if (retval != ERROR_OK) {
 		return retval;
+	}
 
 	/**
 	 * If we are in the cacheable region and cache is activated,
