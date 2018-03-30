@@ -1229,11 +1229,11 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 		case L2:
 		case L2NOWB:
 			/* Extract cache line size */
-			bpl	 = (conf >> CFG2_SLSHIFT) & 16; /* bit 7:4 */
+			bpl	 = (conf >> CFG2_SLSHIFT) & 15; /* bit 7:4 */
 
 			/* Core configured with L2 cache */
 			if (bpl == 0) {
-				LOG_USER("no data cache configured");
+				LOG_USER("no L2 cache configured");
 				ctx.retval = ERROR_OK;
 				goto exit;
  			}
