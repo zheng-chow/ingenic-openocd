@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2012 by Creative Product Design, marc @ cpdesign.com.au *
+ *   Copyright (C) 2017 by Zhou Yanjie, zhou_yan_jie@163.com               *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -12,44 +12,9 @@
  *   GNU General Public License for more details.                          *
  *                                                                         *
  *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-/* 2014-12: Addition of the SWD protocol support is based on the initial work
- * on bcm2835gpio.c by Paul Fertser and modifications by Jean-Christian de Rivaz. */
-
-/**
- * @file
- * This driver implements a bitbang jtag interface using gpio lines via
- * sysfs.
- * The aim of this driver implementation is use system GPIOs but avoid the
- * need for a additional kernel driver.
- * (Note memory mapped IO is another option, however it doesn't mix well with
- * the kernel gpiolib driver - which makes sense I guess.)
- *
- * A gpio is required for tck, tms, tdi and tdo. One or both of srst and trst
- * must be also be specified. The required jtag gpios are specified via the
- * x1000_jtag_nums command or the relevant x1000_XXX_num commang.
- * The srst and trst gpios are set via the x1000_srst_num and
- * x1000_trst_num respectively. GPIO numbering follows the kernel
- * convention of starting from 0.
- *
- * The gpios should not be in use by another entity, and must not be requested
- * by a kernel driver without also being exported by it (otherwise they can't
- * be exported by sysfs).
- *
- * The sysfs gpio interface can only manipulate one gpio at a time, so the
- * bitbang write handler remembers the last state for tck, tms, tdi to avoid
- * superfluous writes.
- * For speed the sysfs "value" entry is opened at init and held open.
- * This results in considerable gains over open-write-close (45s vs 900s)
- *
- * Further work could address:
- *  -srst and trst open drain/ push pull
- *  -configurable active high/low for srst & trst
- */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -131,40 +96,26 @@ static int x1000_read(void)
 
 static void x1000_write(int tck, int tms, int tdi)
 {
-	//uint32_t set = tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;		//mod
-	//uint32_t clear = !tck<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;	//mod
-	port_status = port_status & ~(1<<tck_gpio | 1<<tms_gpio | 1<<tdi_gpio) | tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
+	port_status = (port_status & ~(1<<tck_gpio | 1<<tms_gpio | 1<<tdi_gpio)) |
+					tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
 
-	//PDPAT0S = set;							//mod
-	//PDPAT0C = clear;							//mod
 	PDPAT0 = port_status;
 
-	for (unsigned int i = 0; i < jtag_delay; i++)				//mod
-		asm volatile ("");						//mod
-}										//mod
+	for (unsigned int i = 0; i < jtag_delay; i++)
+		asm volatile ("");
+}
 
 /* (1) assert or (0) deassert reset lines */
-static void x1000_reset(int trst, int srst)					//mod
-{										//mod
-	uint32_t set = 0;							//mod
-	uint32_t clear = 0;							//mod
-										//mod
-	if (trst_gpio > 0) {							//mod
-		//set |= !trst<<trst_gpio;					//mod
-		//clear |= trst<<trst_gpio;					//mod
-		port_status = port_status & ~(1<<trst_gpio) | !trst<<trst_gpio;
-	}									//mod
+static void x1000_reset(int trst, int srst)
+{
+	if (trst_gpio > 0)
+		port_status = (port_status & ~(1<<trst_gpio)) | !trst<<trst_gpio;
 
-	if (srst_gpio > 0) {							//mod
-		//set |= !srst<<srst_gpio;					//mod
-		//clear |= srst<<srst_gpio;					//mod
-		port_status = port_status & ~(1<<srst_gpio) | !srst<<srst_gpio;
-	}									//mod
+	if (srst_gpio > 0)
+		port_status = (port_status & ~(1<<srst_gpio)) | !srst<<srst_gpio;
 
-	//PDPAT0S = set;							//mod
-	//PDPAT0C = clear;							//mod
 	PDPAT0 = port_status;
-}										//mod
+}
 
 static void x1000_led(int on)
 {
@@ -172,7 +123,7 @@ static void x1000_led(int on)
 		PBPAT0S = 1<<led_gpio;
 	else
 		PBPAT0C = 1<<led_gpio;
-}										//mod
+}
 
 static int x1000_khz(int khz, int *jtag_speed)
 {
@@ -353,12 +304,12 @@ static const struct command_registration x1000_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-static struct bitbang_interface x1000_bitbang = {				//mod
-	.read = x1000_read,							//mod
-	.write = x1000_write,						//mod
-	.reset = x1000_reset,						//mod
-	.blink = x1000_led,								//mod
-};										//mod
+static struct bitbang_interface x1000_bitbang = {
+	.read = x1000_read,
+	.write = x1000_write,
+	.reset = x1000_reset,
+	.blink = x1000_led,
+};
 
 struct jtag_interface x1000_interface = {
 	.name = "x1000",
@@ -421,22 +372,22 @@ static int x1000_init(void)							//mod
 		PZPAT0S = 1 << srst_gpio;					//mod
 		PZGID2LD = 0x3;							//mod
 	}									//mod
-	if (led_gpio != -1) {							//mod
-		PZINTC = 1 << led_gpio;					//mod
-		PZMSKS = 1 << led_gpio;					//mod
-		PZPAT1C = 1 << led_gpio;					//mod
-		PZPAT0C = 1 << led_gpio;					//mod
-		PZGID2LD = 0x1;							//mod
-	}									//mod
+	if (led_gpio != -1) {
+		PZINTC = 1 << led_gpio;
+		PZMSKS = 1 << led_gpio;
+		PZPAT1C = 1 << led_gpio;
+		PZPAT0C = 1 << led_gpio;
+		PZGID2LD = 0x1;
+	}
 
 	port_status = PDPAT0;
 
-	LOG_INFO("GPIO JTAG bitbang driver");					//mod
+	LOG_INFO("GPIO JTAG bitbang driver");
 
 	printf("port_status = %08X\n",port_status);
 
-	return ERROR_OK;							//mod
-}										//mod
+	return ERROR_OK;
+}
 
 static int x1000_quit(void)							//mod
 {										//mod
@@ -461,14 +412,14 @@ static int x1000_quit(void)							//mod
 		PZPAT0C = 1 << srst_gpio;					//mod
 		PZGID2LD = 0x3;							//mod
 	}									//mod
-	if (led_gpio != -1) {							//mod
-		PZINTC = 1 << led_gpio;					//mod
-		PZMSKS = 1 << led_gpio;					//mod
-		PZPAT1C = 1 << led_gpio;					//mod
-		PZPAT0C = 1 << led_gpio;					//mod
-		PZGID2LD = 0x1;							//mod
-	}									//mod
+	if (led_gpio != -1) {
+		PZINTC = 1 << led_gpio;
+		PZMSKS = 1 << led_gpio;
+		PZPAT1C = 1 << led_gpio;
+		PZPAT0C = 1 << led_gpio;
+		PZGID2LD = 0x1;
+	}
 
-	return ERROR_OK;							//mod
-}										//mod
+	return ERROR_OK;
+}
 

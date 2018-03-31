@@ -407,6 +407,8 @@ static inline void target_set_examined(struct target *target)
 	target->examined = true;
 }
 
+void target_reset_examined(struct target *target);
+
 /**
  * Add the @a breakpoint for @a target.
  *
@@ -684,6 +686,7 @@ void target_handle_event(struct target *t, enum target_event e);
 #define ERROR_TARGET_TRANSLATION_FAULT	(-309)
 #define ERROR_TARGET_NOT_RUNNING (-310)
 #define ERROR_TARGET_NOT_EXAMINED (-311)
+#define ERROR_TARGET_FAST_DOWNLOAD_FAILED (-312)
 
 extern bool get_target_reset_nag(void);
 

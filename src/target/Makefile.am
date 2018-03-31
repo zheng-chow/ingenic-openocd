@@ -95,7 +95,10 @@ AVR32_SRC = \
 
 MIPS32_SRC = \
 	%D%/mips32.c \
+	%D%/mips_common.c \
 	%D%/mips_m4k.c \
+	%D%/mips_mAptiv.c \
+	%D%/mips_iAptiv.c \
 	%D%/mips32_pracc.c \
 	%D%/mips32_dmaacc.c \
 	%D%/mips_ejtag.c
@@ -159,7 +162,10 @@ INTEL_IA32_SRC = \
 	%D%/etm_dummy.h \
 	%D%/image.h \
 	%D%/mips32.h \
+	%D%/mips_common.h \
 	%D%/mips_m4k.h \
+	%D%/mips_mAptiv.h \
+	%D%/mips_iAptiv.h \
 	%D%/mips_ejtag.h \
 	%D%/mips32_pracc.h \
 	%D%/mips32_dmaacc.h \
