@@ -269,10 +269,10 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 					abandoned_count++;
 				}
 				code_count++;
-				if (code_count > PRACC_MAX_EXEC_CODE_COUNT) {
+				/*if (code_count > PRACC_MAX_EXEC_CODE_COUNT) {
 					LOG_DEBUG("max exec code count is %d", PRACC_MAX_EXEC_CODE_COUNT);
 					return ERROR_JTAG_DEVICE_ERROR;
-				}
+				}*/
 			} else {/* final check after function code shifted out */
 				if (store_pending == 0) {
 					if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT) {
@@ -964,7 +964,6 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 		LOG_DEBUG("mips32_pracc_write_mem error");
 		retval = ERROR_FAIL;
 	}
-	retval = mips32_pracc_write_mem_generic(ejtag_info, addr, size, count, buf);
 	if (retval != ERROR_OK) {
 		return retval;
 	}
@@ -1092,9 +1091,9 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 		MIPS32_ADD(t0, t0, t7),
 	};
 
-    uint32_t inv_data_cache[] = {
+	uint32_t inv_data_cache[] = {
 
-        MIPS32_MFC0(t7, 16, 1),						/* read C0_Config1 */
+        	MIPS32_MFC0(t7, 16, 1),						/* read C0_Config1 */
 
 		MIPS32_SRL (t1, t7, CFG1_DSSHIFT),			/* extract DS */
 		MIPS32_ANDI(t1, t1, 0x7),
@@ -1124,7 +1123,7 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 		MIPS32_LUI(t0, 0x8000)					    /* Get a KSeg0 address for cacheops */
 	};
 
-    uint32_t inv_L2_cache[] = {
+	uint32_t inv_L2_cache[] = {
 
         	MIPS32_MFC0(t7, 16, 2),						/* read C0_Config2 */
 
@@ -1252,7 +1251,6 @@ int mips32_pracc_invalidate_cache(struct target *target, struct mips_ejtag *ejta
 			pracc_add(&ctx, 0, MIPS32_ADDI(t1, t1,NEG16(1)));				// Decrement set counter
 			pracc_add(&ctx, 0, MIPS32_BNE(t1, zero, NEG16(3)));
 			pracc_add(&ctx, 0, MIPS32_ADD(t0, t0, t7));
-			LOG_DEBUG("mips32_pracc_invalidate_cache L2 invalidate is not come true");
 			break;
 
 	}
