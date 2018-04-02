@@ -144,19 +144,14 @@ int mips_common_examine_debug_reason(struct target *target)
 			/* get info about inst breakpoint support */
 			retval = target_read_u32(target,
 				ejtag_info->ejtag_ibs_addr, &break_status);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_u32 failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			if (break_status & 0x1f) {
 				/* we have halted on a breakpoint */
 				retval = target_write_u32(target,
 					ejtag_info->ejtag_ibs_addr, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("target_write_u32 failed");
+				if (retval != ERROR_OK)
 					return retval;
-				}
 				target->debug_reason = DBG_REASON_BREAKPOINT;
 			}
 		}
@@ -165,20 +160,14 @@ int mips_common_examine_debug_reason(struct target *target)
 			/* get info about data breakpoint support */
 			retval = target_read_u32(target,
 				ejtag_info->ejtag_dbs_addr, &break_status);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_u32 failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			if (break_status & 0x1f) {
-				/* we have halted on a	breakpoint */
+				/* we have halted on a breakpoint */
 				retval = target_write_u32(target,
 					ejtag_info->ejtag_dbs_addr, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("target_write_u32 failed");
+				if (retval != ERROR_OK)
 					return retval;
-				}
-
 				target->debug_reason = DBG_REASON_WATCHPOINT;
 			}
 		}
@@ -284,10 +273,10 @@ int mips_common_poll(struct target *target)
 	uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl;
 	enum target_state prev_target_state = target->state;
 
-	/*	toggle to another core is done by gdb as follow */
-	/*	maint packet J core_id */
-	/*	continue */
-	/*	the next polling trigger an halt event sent to gdb */
+	/*  toggle to another core is done by gdb as follow */
+	/*  maint packet J core_id */
+	/*  continue */
+	/*  the next polling trigger an halt event sent to gdb */
 	if ((target->state == TARGET_HALTED) && (target->smp) &&
 		(target->gdb_service) &&
 		(target->gdb_service->target == NULL)) {
@@ -300,10 +289,8 @@ int mips_common_poll(struct target *target)
 	/* read ejtag control reg */
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 	retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK) {
-		LOG_DEBUG("mips_ejtag_drscan_32 failed: ejtag_ctrl = 0x%8.8x", ejtag_ctrl);
+	if (retval != ERROR_OK)
 		return retval;
-	}
 
 	/* clear this bit before handling polling
 	 * as after reset registers will read zero */
@@ -314,11 +301,8 @@ int mips_common_poll(struct target *target)
 
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 		retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("mips_ejtag_drscan_32 failed: ejtag_ctrl");
+		if (retval != ERROR_OK)
 			return retval;
-		}
-
 		LOG_DEBUG("Reset Detected");
 
 		/* Marked register cache invalid if reset detected */
@@ -334,8 +318,6 @@ int mips_common_poll(struct target *target)
 	if (ejtag_ctrl & EJTAG_CTRL_BRKST) {
 		if ((target->state != TARGET_HALTED)
 		    && (target->state != TARGET_DEBUG_RUNNING)) {
-			LOG_DEBUG("target->state != TARGET_HALTED && target->state != TARGET_DEBUG_RUNNING");
-			LOG_DEBUG("target->state: 0x%x", target->state);
 			if (target->state == TARGET_UNKNOWN)
 				LOG_DEBUG("EJTAG_CTRL_BRKST already set during server startup.");
 
@@ -347,10 +329,8 @@ int mips_common_poll(struct target *target)
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_NORMALBOOT);
 			target->state = TARGET_HALTED;
 			retval = mips_common_debug_entry(target, 1);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("mips_common_debug_entry failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
 
 			/* Get cpu config info */
 			mips32_read_cpu_config_info (target);
@@ -359,27 +339,21 @@ int mips_common_poll(struct target *target)
 				((prev_target_state == TARGET_RUNNING)
 			     || (prev_target_state == TARGET_RESET))) {
 				retval = update_halt_gdb(target);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("update_halt_gdb failed");
+				if (retval != ERROR_OK)
 					return retval;
-				}
 			}
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		} else if (target->state == TARGET_DEBUG_RUNNING) {
 			target->state = TARGET_HALTED;
 
 			retval = mips_common_debug_entry(target, 1);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("mips_debug_entry failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
 
 			if (target->smp) {
 				retval = update_halt_gdb(target);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("update_halt_gdb failed");
+				if (retval != ERROR_OK)
 					return retval;
-				}
 			}
 
 			target_call_event_callbacks(target, TARGET_EVENT_DEBUG_HALTED);
@@ -519,7 +493,6 @@ int mips_common_deassert_reset(struct target *target)
 
 int mips_common_single_step_core(struct target *target)
 {
-	LOG_DEBUG ("single_step_core");
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
@@ -776,6 +749,7 @@ int mips_common_set_breakpoint(struct target *target,
 		}
 		breakpoint->set = bp_num + 1;
 		comparator_list[bp_num].used = 1;
+		comparator_list[bp_num].bp_value = breakpoint->address;
 
 		/* EJTAG 2.0 uses 30bit IBA. First 2 bits are reserved.
 		 * Warning: there is no IB ASID registers in 2.0.
@@ -799,8 +773,6 @@ int mips_common_set_breakpoint(struct target *target,
 				target_write_u32(target, comparator_list[bp_num].reg_address,
 								 comparator_list[bp_num].bp_value);
 		}
-		comparator_list[bp_num].bp_value = breakpoint->address;
-
 		target_write_u32(target, comparator_list[bp_num].reg_address +
 				 ejtag_info->ejtag_ibm_offs, 0x00000000);
 
@@ -829,23 +801,15 @@ int mips_common_set_breakpoint(struct target *target,
 
 			retval = target_read_memory(target, breakpoint->address, (breakpoint->length & 0xE), 1,
 					breakpoint->orig_instr);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_memory failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			retval = target_write_u32(target, breakpoint->address, breakpt_instr);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_write_u32 failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
 
 			retval = target_read_u32(target, breakpoint->address, &verify);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_u32 failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			if ((breakpt_instr == MIPS32_SDBBP) && (verify != MIPS32_SDBBP)) {
 				LOG_ERROR("Unable to set 32bit breakpoint at address %08" PRIx32
 						" - check that memory is read/writable", breakpoint->address);
@@ -871,23 +835,15 @@ int mips_common_set_breakpoint(struct target *target,
 
 			retval = target_read_memory(target, breakpoint->address, breakpoint->length, 1,
 					breakpoint->orig_instr);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_memory failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			retval = target_write_u16(target, breakpoint->address, breakpt_instr);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_write_u16 failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
 
 			retval = target_read_u16(target, breakpoint->address, &verify);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_u16 failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			if ((breakpt_instr == MIPS16_SDBBP) && (verify != MIPS16_SDBBP)) {
 				LOG_ERROR("Unable to set 16bit breakpoint at address %08" PRIx32
 						" - check that memory is read/writable", breakpoint->address);
@@ -928,7 +884,6 @@ int mips_common_unset_breakpoint(struct target *target,
 					  breakpoint->unique_id);
 			return ERROR_OK;
 		}
-
 		LOG_INFO("bpid: %" PRIu32 " - releasing hw: %d",
 				breakpoint->unique_id,
 				bp_num);
@@ -946,10 +901,8 @@ int mips_common_unset_breakpoint(struct target *target,
 			/* Remove isa_mode info from length of read */
 			retval = target_read_memory(target, breakpoint->address, (breakpoint->length & 0xE), 1,
 					(uint8_t *)&current_instr);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_memory failed - addr: %x", breakpoint->address);
+			if (retval != ERROR_OK)
 				return retval;
-			}
 
 			/**
 			 * target_read_memory() gets us data in _target_ endianess.
@@ -961,41 +914,63 @@ int mips_common_unset_breakpoint(struct target *target,
 			if ((current_instr == MIPS32_SDBBP) || (current_instr == MICRO_MIPS32_SDBBP)) {
 				retval = target_write_memory(target, breakpoint->address, 4, 1,
 						breakpoint->orig_instr);
-				if (retval != ERROR_OK){
-					LOG_DEBUG("target_write_memory failed");
+				if (retval != ERROR_OK)
 					return retval;
-				}
-			} else {
-				LOG_WARNING("memory modified: no SDBBP instruction found");
-				LOG_WARNING("orignal instruction not written back to memory");
 			}
-
 		} else {
 			uint16_t current_instr;
 
 			/* check that user program has not modified breakpoint instruction */
 			retval = target_read_memory(target, breakpoint->address, 2, 1,
 					(uint8_t *)&current_instr);
-			if (retval != ERROR_OK) {
-				LOG_DEBUG("target_read_memory failed");
+			if (retval != ERROR_OK)
 				return retval;
-			}
-
 			current_instr = target_buffer_get_u16(target, (uint8_t *)&current_instr);
 			if ((current_instr == MIPS16_SDBBP) || (current_instr == MICRO_MIPS_SDBBP)) {
 				retval = target_write_memory(target, breakpoint->address, 2, 1,
 						breakpoint->orig_instr);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("target_write_memory failed");
+				if (retval != ERROR_OK)
 					return retval;
-				}
-			} else {
-				LOG_WARNING("memory modified: no SDBBP instruction found");
-				LOG_WARNING("original instruction not written back to memory");
 			}
 		}
 	}
 	breakpoint->set = 0;
+
+	return ERROR_OK;
+}
+
+int mips_common_add_breakpoint(struct target *target, struct breakpoint *breakpoint)
+{
+	struct mips32_common *mips32 = target_to_mips32(target);
+
+	if (breakpoint->type == BKPT_HARD) {
+		if (mips32->num_inst_bpoints_avail < 1) {
+			LOG_INFO("no hardware breakpoint available");
+			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+		}
+
+		mips32->num_inst_bpoints_avail--;
+	}
+
+	return mips_common_set_breakpoint(target, breakpoint);
+}
+
+int mips_common_remove_breakpoint(struct target *target,
+		struct breakpoint *breakpoint)
+{
+	/* get pointers to arch-specific information */
+	struct mips32_common *mips32 = target_to_mips32(target);
+
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	if (breakpoint->set)
+		mips_common_unset_breakpoint(target, breakpoint);
+
+	if (breakpoint->type == BKPT_HARD)
+		mips32->num_inst_bpoints_avail++;
 
 	return ERROR_OK;
 }
@@ -1185,11 +1160,9 @@ int mips_common_read_memory(struct target *target, uint32_t address,
 		t = buffer;
 
 	/* if noDMA off, use DMAACC mode for memory read */
-	/* Note: Currently no core implement this feature */
 	int retval;
-	if (ejtag_info->impcode & EJTAG_IMP_NODMA) {
+	if (ejtag_info->impcode & EJTAG_IMP_NODMA)
 		retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t, mips32->cp0_mask);
-	}
 	else
 		retval = mips32_dmaacc_read_mem(ejtag_info, address, size, count, t);
 
@@ -1263,7 +1236,6 @@ int mips_common_write_memory(struct target *target, uint32_t address,
 	}
 
 	/* if noDMA off, use DMAACC mode for memory write */
-	/* Note: Currently no core implement this feature */
 	int retval;
 	if (ejtag_info->impcode & EJTAG_IMP_NODMA)
 		retval = mips32_pracc_write_mem(ejtag_info, address, size, count, buffer);
@@ -1315,16 +1287,12 @@ int mips_common_examine(struct target *target)
 
 	/* init rest of ejtag interface */
 	retval = mips_ejtag_init(ejtag_info);
-	if (retval != ERROR_OK) {
-		LOG_DEBUG("mips_ejtag_init failed");
+	if (retval != ERROR_OK)
 		return retval;
-	}
 
 	retval = mips32_examine(target);
-	if (retval != ERROR_OK) {
-		LOG_DEBUG("mips32_examine failed");
+	if (retval != ERROR_OK)
 		return retval;
-	}
 
 	return ERROR_OK;
 }
@@ -1363,8 +1331,6 @@ int mips_common_bulk_write_memory(struct target *target, uint32_t address,
 
 	fast_data_area = mips32->fast_data_area;
 
-	LOG_DEBUG("fast_data_area->address: 0x%8.8x fast_data_area->size: %x",
-			  fast_data_area->address, fast_data_area->size);
 	if (address <= fast_data_area->address + fast_data_area->size &&
 			fast_data_area->address <= address + count) {
 		LOG_ERROR("fast_data (0x%8.8" PRIx32 ") is within write area "
@@ -1395,42 +1361,5 @@ int mips_common_bulk_write_memory(struct target *target, uint32_t address,
 		LOG_ERROR("Fastdata access Failed");
 
 	return retval;
-}
-
-int mips_common_add_breakpoint(struct target *target, struct breakpoint *breakpoint)
-{
-	struct mips32_common *mips32 = target_to_mips32(target);
-
-	if (breakpoint->type == BKPT_HARD) {
-		if (mips32->num_inst_bpoints_avail < 1) {
-			LOG_INFO("no hardware breakpoint available");
-			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
-		}
-
-		mips32->num_inst_bpoints_avail--;
-	}
-
-	return mips_common_set_breakpoint(target, breakpoint);
-}
-
-
-int mips_common_remove_breakpoint(struct target *target,
-		struct breakpoint *breakpoint)
-{
-	/* get pointers to arch-specific information */
-	struct mips32_common *mips32 = target_to_mips32(target);
-
-	if (target->state != TARGET_HALTED) {
-		LOG_WARNING("target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-
-	if (breakpoint->set)
-		mips_common_unset_breakpoint(target, breakpoint);
-
-	if (breakpoint->type == BKPT_HARD)
-		mips32->num_inst_bpoints_avail++;
-
-	return ERROR_OK;
 }
 

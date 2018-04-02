@@ -604,7 +604,7 @@ struct mips32_algorithm {
 #define MIPS32_OP_MFHI	0x10
 #define MIPS32_OP_MTHI	0x11
 #define MIPS32_OP_MFLO	0x12
-#define MIPS32_OP_MUL	0x2
+#define MIPS32_OP_MUL	0x02
 #define MIPS32_OP_MTLO	0x13
 #define MIPS32_OP_RDHWR 0x3B
 #define MIPS32_OP_SB	0x28
