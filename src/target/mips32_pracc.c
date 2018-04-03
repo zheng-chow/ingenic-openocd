@@ -928,10 +928,10 @@ static int mips32_pracc_write_mem_series(struct mips_ejtag *ejtag_info, uint32_t
 		uint32_t data = *((uint32_t *)buf + code_count + CC_COPY);
                 mips_ejtag_drscan_32_out(ejtag_info, data);
 		(void)jtag_execute_queue();
+
         	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 REDO:		ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-        	mips_ejtag_drscan_19(ejtag_info, &ejtag_ctrl);
-
+        	mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
 		if ((ejtag_ctrl & EJTAG_CTRL_PRACC) != 0) {
 			if (code_count == (count - (int)CC_COPY)) {
 				break;
