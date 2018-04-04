@@ -140,6 +140,7 @@ static const struct {
 	{ "f31"      , REG_TYPE_IEEE_SINGLE, NULL    , "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
 	{ "fcsr"     , REG_TYPE_INT        , "float" , "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
 	{ "fir"      , REG_TYPE_INT        , "float" , "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
+	( "w0"	     , REG_TYPE_IEEE_SINGLE, NULL    , 			),
 };
 
 /* Order fixed */
@@ -319,7 +320,7 @@ int mips32_save_context(struct target *target)
 	mips32->fp_implemented = (config1 & CFG1_FP);
 	
 	/* Retrive if MSA Implemented */
-	mips32->msa_implemented = (config3 & CFG3_MSA);
+	mips32->msa_implemented = (config3 & CFG3_MSAP);
 
 	/* FP Coprocessor available read FP registers */
 	if (mips32->fp_implemented == FP_IMP) {

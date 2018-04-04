@@ -459,6 +459,7 @@ struct mips32_algorithm {
 #define CFG3_MT			0x00000004		/* MT ASE present */
 #define CFG3_SM			0x00000002		/* SmartMIPS ASE */
 #define CFG3_TL			0x00000001		/* Trace Logic */
+#define CFG3_MSAP		0x10000000		/* MSA present */
 
 /* Enable CoProcessor - CP0 12, 0 (status) */
 #define STATUS_CU3_MASK 0x80000000
