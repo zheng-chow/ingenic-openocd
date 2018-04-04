@@ -1,0 +1,331 @@
+tcl.lo: ../../../src/jtag/tcl.c ../../config.h \
+ ../../../src/helper/system.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdio.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/features.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdc-predef.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/predefs.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/cdefs.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/wordsize.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/gnu/stubs.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sgidefs.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/gnu/stubs-o32.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stddef.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/types.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/typesizes.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/libio.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/_G_config.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/wchar.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stdarg.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/stdio_lim.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/sys_errlist.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/stdio.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdlib.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/waitflags.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/waitstatus.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/endian.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/endian.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/byteswap.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/byteswap-16.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/xlocale.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/types.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/time.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/select.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/select.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/sigset.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/time.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/sysmacros.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/pthreadtypes.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/alloca.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/string.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/string.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/string2.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/assert.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/ctype.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/errno.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/errno.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/linux/errno.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/errno.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm-generic/errno-base.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/time.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/timex.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/socket.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/uio.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/uio.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/socket.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/socket_type.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/sockaddr.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/socket.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/sockios.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/ioctl.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm-generic/ioctl.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/poll.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/poll.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/netinet/in.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stdint.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdint.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/wchar.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/in.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/param.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include-fixed/limits.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include-fixed/syslimits.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/limits.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/posix1_lim.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/local_lim.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/linux/limits.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/posix2_lim.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/xopen_lim.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/linux/param.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/param.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm-generic/param.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/unistd.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/posix_opt.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/environments.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/confname.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/getopt.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/fcntl.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/fcntl.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/stat.h \
+ ../../../src/helper/types.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/inttypes.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stdbool.h \
+ ../../../src/helper/replacements.h ../../../src/jtag/jtag.h \
+ ../../../src/helper/binarybuffer.h ../../../src/helper/list.h \
+ ../../../src/helper/log.h ../../../src/helper/command.h \
+ ../../../src/helper/jim-nvp.h ../../../jimtcl/jim.h \
+ ../../../jimtcl/jim-win32compat.h ../../jimtcl/jim-config.h \
+ ../../../src/jtag/minidriver.h ../../src/jtag/minidriver_imp.h \
+ ../../../src/jtag/commands.h ../../../src/jtag/swd.h \
+ ../../../src/target/arm_adi_v5.h ../../../src/target/arm_jtag.h \
+ ../../../src/jtag/jtag.h ../../../src/jtag/minidriver.h \
+ ../../../src/jtag/interface.h ../../../src/jtag/interfaces.h \
+ ../../../src/jtag/interface.h ../../../src/jtag/tcl.h \
+ /home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/strings.h \
+ ../../../src/helper/time_support.h
+
+../../config.h:
+
+../../../src/helper/system.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdio.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/features.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdc-predef.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/predefs.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/cdefs.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/wordsize.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/gnu/stubs.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sgidefs.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/gnu/stubs-o32.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stddef.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/types.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/typesizes.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/libio.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/_G_config.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/wchar.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stdarg.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/stdio_lim.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/sys_errlist.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/stdio.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdlib.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/waitflags.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/waitstatus.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/endian.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/endian.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/byteswap.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/byteswap-16.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/xlocale.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/types.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/time.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/select.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/select.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/sigset.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/time.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/sysmacros.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/pthreadtypes.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/alloca.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/string.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/string.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/string2.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/assert.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/ctype.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/errno.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/errno.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/linux/errno.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/errno.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm-generic/errno-base.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/time.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/timex.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/socket.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/uio.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/uio.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/socket.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/socket_type.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/sockaddr.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/socket.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/sockios.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/ioctl.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm-generic/ioctl.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/poll.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/poll.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/netinet/in.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stdint.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/stdint.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/wchar.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/in.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/param.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include-fixed/limits.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include-fixed/syslimits.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/limits.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/posix1_lim.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/local_lim.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/linux/limits.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/posix2_lim.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/xopen_lim.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/linux/param.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm/param.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/asm-generic/param.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/unistd.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/posix_opt.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/environments.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/confname.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/getopt.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/fcntl.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/fcntl.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/bits/stat.h:
+
+../../../src/helper/types.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/inttypes.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../lib/gcc/mips-linux-gnu/4.7.2/include/stdbool.h:
+
+../../../src/helper/replacements.h:
+
+../../../src/jtag/jtag.h:
+
+../../../src/helper/binarybuffer.h:
+
+../../../src/helper/list.h:
+
+../../../src/helper/log.h:
+
+../../../src/helper/command.h:
+
+../../../src/helper/jim-nvp.h:
+
+../../../jimtcl/jim.h:
+
+../../../jimtcl/jim-win32compat.h:
+
+../../jimtcl/jim-config.h:
+
+../../../src/jtag/minidriver.h:
+
+../../src/jtag/minidriver_imp.h:
+
+../../../src/jtag/commands.h:
+
+../../../src/jtag/swd.h:
+
+../../../src/target/arm_adi_v5.h:
+
+../../../src/target/arm_jtag.h:
+
+../../../src/jtag/jtag.h:
+
+../../../src/jtag/minidriver.h:
+
+../../../src/jtag/interface.h:
+
+../../../src/jtag/interfaces.h:
+
+../../../src/jtag/interface.h:
+
+../../../src/jtag/tcl.h:
+
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/strings.h:
+
+../../../src/helper/time_support.h:

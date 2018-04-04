@@ -278,6 +278,7 @@ int mips32_save_context(struct target *target)
 	unsigned int i;
 	int retval;
 	uint32_t config1;
+	uint32_t config3;
 
 	/* get pointers to arch-specific information */
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -303,33 +304,42 @@ int mips32_save_context(struct target *target)
 	/* Read Config1 registers */
 	retval = mips32_pracc_cp0_read(ejtag_info, &config1, 16, 1);
 	if (retval != ERROR_OK) {
+		LOG_DEBUG("reading config1 register failed");
+		return retval;
+	}
+
+	/* Read Config3 registers */
+	retval = mips32_pracc_cp0_read(ejtag_info, &config3, 16, 3);
+	if (retval != ERROR_OK) {
 		LOG_DEBUG("reading config3 register failed");
 		return retval;
 	}
 
 	/* Retrive if Float Point CoProcessor Implemented */
 	mips32->fp_implemented = (config1 & CFG1_FP);
+	
+	/* Retrive if MSA Implemented */
+	mips32->msa_implemented = (config3 & CFG3_MSA);
 
 	/* FP Coprocessor available read FP registers */
 	if (mips32->fp_implemented == FP_IMP) {
-		uint32_t config3;
 		uint32_t mvpconf1;
 		uint32_t status;
 		uint32_t tmp_status;
 
 		/* Read Config1 registers */
-		retval = mips32_pracc_cp0_read(ejtag_info, &config1, 16, 1);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
-			return retval;
-		}
+	//	retval = mips32_pracc_cp0_read(ejtag_info, &config1, 16, 1);
+	//	if (retval != ERROR_OK) {
+	//		LOG_DEBUG("reading config1 register failed");
+	//		return retval;
+	//	}
 
-		/* Read Config3 registers */
-		retval = mips32_pracc_cp0_read(ejtag_info, &config3, 16, 3);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
-			return retval;
-		}
+	//	/* Read Config3 registers */
+	//	retval = mips32_pracc_cp0_read(ejtag_info, &config3, 16, 3);
+	//	if (retval != ERROR_OK) {
+	//		LOG_DEBUG("reading config3 register failed");
+	//		return retval;
+	//	}
 
 		/* Read mvpconf1 registers */
 		retval = mips32_pracc_cp0_read(ejtag_info, &mvpconf1, 0, 3);
@@ -405,7 +415,58 @@ int mips32_save_context(struct target *target)
 				LOG_DEBUG("writing status register failed");
 			}
 		}
+
 		for (i = MIPS32_F0; i < MIPS32_NUM_REGS; i++) {
+			if (mips32->core_cache->reg_list[i].valid) {
+				retval = mips32->read_core_reg(target, i);
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("mips32->read_core_reg failed");
+					return retval;
+				}
+			}
+		}
+
+	}
+
+	/* MSA available read msa registers */
+	if (mips32->msa_implemented == MSA_IMP) {
+		uint32_t status;
+		uint32_t tmp_status;
+		uint32_t config5;
+
+		/* Read Status register, save it and modify to enable CP0 */
+		retval = mips32_pracc_cp0_read(ejtag_info, &status, 12, 0);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("reading status register failed");
+			return retval;
+		}
+
+		/* Read Config5 register, save it and modify to enable MSA */
+		retval = mips32_pracc_cp0_read(ejtag_info, &config5, 16, 5);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("reading status register failed");
+			return retval;
+		}
+
+		/* Check if Access to COP1 and COP2 enabled */
+		if (((status & 0x60000000) >> 29) != 3) {
+			if ((retval = mips32_pracc_cp0_write(ejtag_info, (status | STATUS_CU1_MASK | STATUS_CU2_MASK), 12, 0)) != ERROR_OK) {
+				LOG_DEBUG("writing status register failed");
+					return retval;
+			}
+		}
+		
+
+		/* read core registers */
+		retval = mips32_pracc_read_msa_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_W0]));
+		if (retval != ERROR_OK)
+			LOG_INFO("mips32->read_fpu_reg failed: status: 0x%x, tmp_status: 0x%x", status, tmp_status);
+		
+		/* restore previous setting */
+		if ((mips32_pracc_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
+		LOG_DEBUG("writing status register failed");
+
+		for (i = MIPS32_W0; i < MIPS32_NUM_REGS; i++) {
 			if (mips32->core_cache->reg_list[i].valid) {
 				retval = mips32->read_core_reg(target, i);
 				if (retval != ERROR_OK) {

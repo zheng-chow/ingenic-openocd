@@ -1,0 +1,79 @@
+Invoked as: /home/guest/ysyuan/ingenic-openocd/build/jimtcl/../../jimtcl/configure --disable-install-jim --disable-option-checking --prefix=/home/guest/ysyuan/ingenic-openocd/build --host=mips-linux-gnu --build=x86_64-linux --enable-x1000 build_alias=x86_64-linux host_alias=mips-linux-gnu --cache-file=/dev/null --srcdir=../../jimtcl
+Failed: ccache mips-linux-gnu-gcc -g -O2 -c conftest__.c -o conftest__.o
+conftest__.c:1:25: fatal error: crt_externs.h: No such file or directory
+compilation terminated.
+child process exited abnormally
+============
+The failed code was:
+#include <crt_externs.h>
+int main(void) {
+
+return 0;
+}
+============
+Failed: ccache mips-linux-gnu-gcc -g -O2 conftest__.c -o conftest__
+/tmp/ccC9rAJW.o: In function `main':
+/home/guest/ysyuan/ingenic-openocd/build/jimtcl/conftest__.c:3: undefined reference to `sys_signame'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void sys_signame(void);
+int main(void) {
+sys_signame();
+return 0;
+}
+============
+Failed: ccache mips-linux-gnu-gcc -g -O2 -c -D_FILE_OFFSET_BITS=64 conftest__.c -o conftest__.o
+conftest__.c: In function 'main':
+conftest__.c:3:12: error: size of array '_x' is negative
+child process exited abnormally
+============
+The failed code was:
+#include <sys/types.h>
+int main(void) {
+static int _x[sizeof(off_t) == 4 ? 1 : -1] = { 1 };
+return 0;
+}
+============
+Failed: ccache mips-linux-gnu-gcc -g -O2 conftest__.c -o conftest__
+/tmp/ccAMeJIm.o: In function `main':
+/home/guest/ysyuan/ingenic-openocd/build/jimtcl/conftest__.c:3: undefined reference to `_NSGetEnviron'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void _NSGetEnviron(void);
+int main(void) {
+_NSGetEnviron();
+return 0;
+}
+============
+Failed: ccache mips-linux-gnu-gcc -g -O2 -c conftest__.c -o conftest__.o
+conftest__.c: In function 'main':
+conftest__.c:4:1: error: too few arguments to function 'mkdir'
+In file included from conftest__.c:2:0:
+/home/tools/ingenic/mips-gcc472-glibc216/bin/../mips-linux-gnu/libc/usr/include/sys/stat.h:322:12: note: declared here
+child process exited abnormally
+============
+The failed code was:
+#include <sys/types.h>
+#include <sys/stat.h>
+int main(void) {
+mkdir("/dummy");
+return 0;
+}
+============
+Failed: ccache mips-linux-gnu-gcc -g -O2 conftest__.c -o conftest__
+/tmp/ccsPn3Uy.o: In function `main':
+/home/guest/ysyuan/ingenic-openocd/build/jimtcl/conftest__.c:3: undefined reference to `dlopen'
+collect2: error: ld returned 1 exit status
+child process exited abnormally
+============
+The failed code was:
+extern void dlopen(void);
+int main(void) {
+dlopen();
+return 0;
+}
+============
