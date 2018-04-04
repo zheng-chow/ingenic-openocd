@@ -310,6 +310,16 @@ AS_CASE(["${host_cpu}"],
     build_imx_gpio=no
 ])
 
+AS_CASE(["${host_cpu}"],
+  [mips*], [
+    AC_ARG_ENABLE([x1000],
+      AS_HELP_STRING([--enable-x1000], [Enable building support for bitbanging on Ingenic X1000 processors]),
+      [build_x1000=$enableval], [build_x1000=no])
+  ],
+  [
+    build_x1000=no
+])
+
 AC_ARG_ENABLE([gw16012],
   AS_HELP_STRING([--enable-gw16012], [Enable building support for the Gateworks GW16012 JTAG Programmer]),
   [build_gw16012=$enableval], [build_gw16012=no])
@@ -528,6 +538,13 @@ AS_IF([test "x$build_imx_gpio" = "xyes"], [
   AC_DEFINE([BUILD_IMX_GPIO], [0], [0 if you don't want imx_gpio.])
 ])
 
+AS_IF([test "x$build_x1000" = "xyes"], [
+  build_bitbang=yes
+  AC_DEFINE([BUILD_X1000], [1], [1 if you want x1000.])
+], [
+  AC_DEFINE([BUILD_X1000], [0], [0 if you don't want x1000.])
+])
+
 AS_IF([test "x$parport_use_ppdev" = "xyes"], [
   AC_DEFINE([PARPORT_USE_PPDEV], [1], [1 if you want parport to use ppdev.])
 ], [
@@ -699,6 +716,7 @@ AM_CONDITIONAL([IOUTIL], [test "x$build_ioutil" = "xyes"])
 AM_CONDITIONAL([AT91RM9200], [test "x$build_at91rm9200" = "xyes"])
 AM_CONDITIONAL([BCM2835GPIO], [test "x$build_bcm2835gpio" = "xyes"])
 AM_CONDITIONAL([IMX_GPIO], [test "x$build_imx_gpio" = "xyes"])
+AM_CONDITIONAL([X1000], [test "x$build_x1000" = "xyes"])
 AM_CONDITIONAL([BITBANG], [test "x$build_bitbang" = "xyes"])
 AM_CONDITIONAL([JTAG_VPI], [test "x$build_jtag_vpi" = "xyes" -o "x$build_jtag_vpi" = "xyes"])
 AM_CONDITIONAL([USB_BLASTER_DRIVER], [test "x$enable_usb_blaster" != "xno" -o "x$enable_usb_blaster_2" != "xno"])

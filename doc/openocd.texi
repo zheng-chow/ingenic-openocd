@@ -598,6 +598,9 @@ produced, PDF schematics are easily found and it is easy to make.
 @item @b{imx_gpio}
 @* A NXP i.MX-based board (e.g. Wandboard) using the GPIO pins (should work on any i.MX processor).
 
+@item @b{x1000}
+@* A Ingenic X1000-based board using the GPIO pins.
+
 @item @b{jtag_vpi}
 @* A JTAG driver acting as a client for the JTAG VPI server interface.
 @* Link: @url{http://github.com/fjullien/jtag_vpi}
@@ -3036,6 +3039,14 @@ of the one which is most popular.
 This driver is mostly the same as bcm2835gpio.
 
 See @file{interface/imx-native.cfg} for a sample config and
+pinout.
+
+@end deffn
+
+@deffn {Interface Driver} {x1000}
+A Ingenic X1000-based board using the GPIO pins.
+
+See @file{interface/x1000-native.cfg} for a sample config and
 pinout.
 
 @end deffn
