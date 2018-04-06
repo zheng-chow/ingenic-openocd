@@ -1089,7 +1089,7 @@ static int mips_m4k_write_memory(struct target *target, target_addr_t address,
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (size == 4 && count > 32) {
+	if ((size == 4 && count > 32) && (ejtag_info->ejtag_version > EJTAG_VERSION_25)) {
 		int retval = mips_m4k_bulk_write_memory(target, address, count, buffer);
 		if (retval == ERROR_OK)
 			return ERROR_OK;

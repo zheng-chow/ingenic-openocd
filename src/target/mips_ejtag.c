@@ -302,7 +302,7 @@ static void ejtag_v20_print_imp(struct mips_ejtag *ejtag_info)
 
 static void ejtag_v26_print_imp(struct mips_ejtag *ejtag_info)
 {
-	LOG_DEBUG("EJTAG v2.6: features:%s%s",
+	LOG_DEBUG("EJTAG v2.5/v2.6: features:%s%s",
 		EJTAG_IMP_HAS(EJTAG_V26_IMP_R3K) ? " R3k" : " R4k",
 		EJTAG_IMP_HAS(EJTAG_V26_IMP_DINT) ? " DINT" : "");
 }

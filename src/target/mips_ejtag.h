@@ -200,6 +200,7 @@ struct mips_ejtag {
 	unsigned int ejtag_version;
 	uint32_t isa;
 	uint32_t endianness;
+	uint32_t core_type;
 
 	/* Memory-Mapped Registers. This addresses are not same on different
 	 * EJTAG versions. */

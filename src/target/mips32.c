@@ -704,10 +704,12 @@ int mips32_read_config_regs(struct target *target)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	int retval;
+	uint32_t prid;
 
 	if (ejtag_info->config_regs == 0)
 		for (int i = 0; i != 4; i++) {
-			int retval = mips32_cp0_read(ejtag_info, &ejtag_info->config[i], 16, i);
+			retval = mips32_cp0_read(ejtag_info, &ejtag_info->config[i], 16, i);
 			if (retval != ERROR_OK) {
 				LOG_ERROR("isa info not available, failed to read cp0 config register: %" PRId32, i);
 				ejtag_info->config_regs = 0;
@@ -741,6 +743,43 @@ int mips32_read_config_regs(struct target *target)
 	if (mips32->isa_imp == MIPS32_ONLY)	/* initial default value */
 		LOG_USER("MIPS32 only implemented");
 
+	/* Read PRID registers and determine CPU type from PRID.*/
+	retval = mips32_cp0_read(ejtag_info, &prid, 15, 0);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("READ of PRID Failed");
+		return retval;
+	} else {
+		/* Ingenic */
+		if (((prid >> 16) & 0xf0) == 0xd0) {
+			ejtag_info->core_type = MIPS_INGENIC_XBURST1;
+			goto exit;
+		}
+		if (((prid >> 16) & 0xff) == 0x13) {
+			switch ((prid >> 13) & 0x7) {
+				case 0:
+					ejtag_info->core_type = MIPS_INGENIC_XBURST1;
+					break;
+				case 1:
+					ejtag_info->core_type = MIPS_INGENIC_XBURST2;
+					break;
+				default:
+					ejtag_info->core_type = MIPS_INGENIC_XBURST2;
+					LOG_DEBUG("An unrecognized Ingenic CPU type, default is XBURST2.");
+					break;
+			} /* end of switch */
+			goto exit;
+		}
+		/* MIPS Technologies cores */
+		switch ((prid >> 8) & 0xff) {
+			case 0x87:
+				ejtag_info->core_type = MIPS_M4K;
+				break;
+			default:
+				ejtag_info->core_type = CORE_TYPE_UNKNOWN;
+				break;
+		} /* end of switch */
+	}
+exit:
 	return ERROR_OK;
 }
 int mips32_checksum_memory(struct target *target, target_addr_t address,

@@ -820,7 +820,7 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 	uint32_t conf = 0;
 	int cached = 0;
 
-	if ((KSEGX(addr) == KSEG1) || ((addr >= 0xff200000) && (addr <= 0xff3fffff)))
+	if ((KSEGX(addr) == KSEG1) || ((addr >= 0xff200000) && (addr <= 0xff3fffff))) // TODO:The Ingenic cpu ejtag has itself accelerate mode
 		return retval; /*Nothing to do*/
 
 	mips32_cp0_read(ejtag_info, &conf, 16, 0);
@@ -846,15 +846,29 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 	 * is the region cacheable or uncached.
 	 * If cacheable we have to synchronize the cache
 	 */
-	if (cached == 3 || cached == 0) {		/* Write back cache or write through cache */
-		uint32_t start_addr = addr;
-		uint32_t end_addr = addr + count * size;
-		uint32_t rel = (conf & MIPS32_CONFIG0_AR_MASK) >> MIPS32_CONFIG0_AR_SHIFT;
-		if (rel > 1) {
-			LOG_DEBUG("Unknown release in cache code");
-			return ERROR_FAIL;
+	if ((ejtag_info->core_type == MIPS_INGENIC_XBURST1) || (ejtag_info->core_type == MIPS_INGENIC_XBURST2)) {
+		if (cached == 3 || cached == 4 || cached == 5) { /* WB,WA or WB,WA,RE,Coherent or WB,WA,RS,Coherent */
+			uint32_t start_addr = addr;
+			uint32_t end_addr = addr + count * size;
+			uint32_t rel = (conf & MIPS32_CONFIG0_AR_MASK) >> MIPS32_CONFIG0_AR_SHIFT;
+			if (rel > 1) {
+				LOG_DEBUG("Unknown release in cache code");
+				return ERROR_FAIL;
+			}
+			retval = mips32_pracc_synchronize_cache(ejtag_info, start_addr, end_addr, cached, rel);
 		}
-		retval = mips32_pracc_synchronize_cache(ejtag_info, start_addr, end_addr, cached, rel);
+	}
+	else {
+		if (cached == 3 || cached == 0) { /* Write back cache or write through cache */
+			uint32_t start_addr = addr;
+			uint32_t end_addr = addr + count * size;
+			uint32_t rel = (conf & MIPS32_CONFIG0_AR_MASK) >> MIPS32_CONFIG0_AR_SHIFT;
+			if (rel > 1) {
+				LOG_DEBUG("Unknown release in cache code");
+				return ERROR_FAIL;
+			}
+			retval = mips32_pracc_synchronize_cache(ejtag_info, start_addr, end_addr, cached, rel);
+		}
 	}
 
 	return retval;

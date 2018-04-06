@@ -66,6 +66,9 @@
 
 #define MIPS32_SCAN_DELAY_LEGACY_MODE 2000000
 
+#define MIPS_CORE_M4K  		0x1000
+#define MIPS_CORE_INGENIC	0x40000000
+
 /* offsets into mips32 core register cache */
 enum {
 	MIPS32_PC = 37,
@@ -84,6 +87,13 @@ enum mips32_isa_imp {
 	MMIPS32_ONLY = 1,
 	MIPS32_MIPS16 = 2,
 	MIPS32_MMIPS32 = 3,
+};
+
+enum mips32_core_type {
+	CORE_TYPE_UNKNOWN		=	0,
+	MIPS_M4K	  			=	0x0008 | MIPS_CORE_M4K,
+	MIPS_INGENIC_XBURST1 	=	0x0000 | MIPS_CORE_INGENIC,
+	MIPS_INGENIC_XBURST2 	=	0x0001 | MIPS_CORE_INGENIC,
 };
 
 struct mips32_comparator {
