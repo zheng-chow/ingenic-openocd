@@ -651,7 +651,8 @@ static int mips32_pracc_synchronize_cache(struct mips_ejtag *ejtag_info,
 
 	/** Find cache line size in bytes */
 	uint32_t clsiz;
-	if (rel) {	/* Release 2 (rel = 1) */
+	/* Ingenic Xburst1 is not support RDHWR, so we can not use it get CACHE_LINE_SIZE */
+	if (rel && (ejtag_info->core_type != MIPS_INGENIC_XBURST1)) { /* Release 2 (rel = 1) */
 		pracc_add(&ctx, 0, MIPS32_LUI(ctx.isa, 15, PRACC_UPPER_BASE_ADDR)); /* $15 = MIPS32_PRACC_BASE_ADDR */
 
 		pracc_add(&ctx, 0, MIPS32_RDHWR(ctx.isa, 8, MIPS32_SYNCI_STEP)); /* load synci_step value to $8 */
