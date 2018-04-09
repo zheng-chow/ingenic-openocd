@@ -27,7 +27,50 @@
 #include "target.h"
 #include "mips32_pracc.h"
 
-#define MIPS32_COMMON_MAGIC		0xB320B320
+#define MIPS32_COMMON_MAGIC     0xB320B320
+
+/* Cache flush type*/
+#define ALL                     0
+#define INSTNOWB                1
+#define DATA                    2
+#define ALLNOWB                 3
+#define DATANOWB                4
+#define L2                      5
+#define L2NOWB                  6
+
+/* Mips reg name*/
+#define zero    0
+#define AT      1
+#define v0      2
+#define v1      3
+#define a0      4
+#define a1      5
+#define a2      6
+#define a3      7
+#define t0      8
+#define t1      9
+#define t2      10
+#define t3      11
+#define t4      12
+#define t5      13
+#define t6      14
+#define t7      15
+#define s0      16
+#define s1      17
+#define s2      18
+#define s3      19
+#define s4      20
+#define s5      21
+#define s6      22
+#define s7      23
+#define s8      30              /* == fp */
+#define t8      24
+#define t9      25
+#define k0      26
+#define k1      27
+#define sp      29
+#define fp      30
+#define ra      31
 
 /**
  * Memory segments (32bit kernel mode addresses)
@@ -42,7 +85,7 @@
 /** Returns the kernel segment base of a given address */
 #define KSEGX(a)		((a) & 0xe0000000)
 
-/** CP0 CONFIG regites fields */
+/** CP0 CONFIG0 regites fields */
 #define MIPS32_CONFIG0_KU_SHIFT 25
 #define MIPS32_CONFIG0_KU_MASK (0x7 << MIPS32_CONFIG0_KU_SHIFT)
 
@@ -55,11 +98,129 @@
 #define MIPS32_CONFIG0_AR_SHIFT 10
 #define MIPS32_CONFIG0_AR_MASK (0x7 << MIPS32_CONFIG0_AR_SHIFT)
 
+/** CP0 CONFIG1 regites fields */
+#define MIPS32_CONFIG1_IS_SHIFT 22
+#define MIPS32_CONFIG1_IS_MASK (0x7 << MIPS32_CONFIG1_IS_SHIFT)
+
+#define MIPS32_CONFIG1_IL_SHIFT 19
+#define MIPS32_CONFIG1_IL_MASK (0x7 << MIPS32_CONFIG1_IL_SHIFT)
+
+#define MIPS32_CONFIG1_IA_SHIFT 16
+#define MIPS32_CONFIG1_IA_MASK (0x7 << MIPS32_CONFIG1_IA_SHIFT)
+
+#define MIPS32_CONFIG1_DS_SHIFT 13
+#define MIPS32_CONFIG1_DS_MASK (0x7 << MIPS32_CONFIG1_DS_SHIFT)
+
 #define MIPS32_CONFIG1_DL_SHIFT 10
 #define MIPS32_CONFIG1_DL_MASK (0x7 << MIPS32_CONFIG1_DL_SHIFT)
 
+#define MIPS32_CONFIG1_DA_SHIFT 7
+#define MIPS32_CONFIG1_DA_MASK (0x7 << MIPS32_CONFIG1_DA_SHIFT)
+
+/** CP0 CONFIG2 regites fields */
+#define MIPS32_CONFIG2_SS_SHIFT 8
+#define MIPS32_CONFIG2_SS_MASK (0xf << MIPS32_CONFIG1_SS_SHIFT)
+
+#define MIPS32_CONFIG2_SL_SHIFT 4
+#define MIPS32_CONFIG2_SL_MASK (0xf << MIPS32_CONFIG1_SL_SHIFT)
+
+#define MIPS32_CONFIG2_SA_SHIFT 0
+#define MIPS32_CONFIG2_SA_MASK (0xf << MIPS32_CONFIG1_SA_SHIFT)
+
+/** CP0 CONFIG3 regites fields */
 #define MIPS32_CONFIG3_ISA_SHIFT	14
 #define MIPS32_CONFIG3_ISA_MASK		(3 << MIPS32_CONFIG3_ISA_SHIFT)
+
+/*
+ * MIPS32 Coprocessor 0 register numbers
+ */
+#define C0_INDEX                0
+#define C0_INX                  0
+#define C0_RANDOM               1
+#define C0_RAND                 1
+#define C0_ENTRYLO0             2
+#define C0_TLBLO0               2
+#define C0_ENTRYLO1             3
+#define C0_TLBLO1               3
+#define C0_CONTEXT              4
+#define C0_CTXT                 4
+#define C0_PAGEMASK             5
+#define C0_PAGEGRAIN            (5, 1)
+#define C0_WIRED                6
+#define C0_HWRENA               7
+#define C0_BADVADDR             8
+#define C0_VADDR                8
+#define C0_COUNT                9
+#define C0_ENTRYHI              10
+#define C0_TLBHI                10
+#define C0_GUESTCTL1            10
+#define C0_COMPARE              11
+#define C0_STATUS               12
+#define C0_SR                   12
+#define C0_INTCTL               (12, 1)
+#define C0_SRSCTL               (12, 2)
+#define C0_SRSMAP               (12, 3)
+#define C0_CAUSE                13
+#define C0_CR                   13
+#define C0_EPC                  14
+#define C0_PRID                 15
+#define C0_EBASE                (15, 1)
+#define C0_CONFIG               16
+#define C0_CONFIG0              (16, 0)
+#define C0_CONFIG1              (16, 1)
+#define C0_CONFIG2              (16, 2)
+#define C0_CONFIG3              (16, 3)
+#define C0_LLADDR               17
+#define C0_WATCHLO              18
+#define C0_WATCHHI              19
+#define C0_DEBUG                23
+#define C0_DEPC                 24
+#define C0_PERFCNT              25
+#define C0_ERRCTL               26
+#define C0_CACHEERR             27
+#define C0_TAGLO                28
+#define C0_ITAGLO               28
+#define C0_DTAGLO               (28, 2)
+#define C0_TAGLO2               (28, 4)
+#define C0_DATALO               (28, 1)
+#define C0_IDATALO              (28, 1)
+#define C0_DDATALO              (28, 3)
+#define C0_DATALO2              (28, 5)
+#define C0_TAGHI                29
+#define C0_ITAGHI               29
+#define C0_DATAHI               (29, 1)
+#define C0_ERRPC                30
+#define C0_DESAVE               31
+
+/*
+ * Cache operations
+ */
+#define Index_Invalidate_I                               0x00            /* 0           0 */
+#define Index_Writeback_Inv_D                            0x01            /* 0           1 */
+#define Index_Writeback_Inv_T                            0x02            /* 0           2 */
+#define Index_Writeback_Inv_S                            0x03            /* 0           3 */
+#define Index_Load_Tag_I                                 0x04            /* 1           0 */
+#define Index_Load_Tag_D                                 0x05            /* 1           1 */
+#define Index_Load_Tag_T                                 0x06            /* 1           2 */
+#define Index_Load_Tag_S                                 0x07            /* 1           3 */
+#define Index_Store_Tag_I                                0x08            /* 2           0 */
+#define Index_Store_Tag_D                                0x09            /* 2           1 */
+#define Index_Store_Tag_T                                0x0A            /* 2           2 */
+#define Index_Store_Tag_S                                0x0B            /* 2           3 */
+#define Hit_Invalidate_I                                 0x10            /* 4           0 */
+#define Hit_Invalidate_D                                 0x11            /* 4           1 */
+#define Hit_Invalidate_T                                 0x12            /* 4           2 */
+#define Hit_Invalidate_S                                 0x13            /* 4           3 */
+#define Fill_I                                           0x14            /* 5           0 */
+#define Hit_Writeback_Inv_D                              0x15            /* 5           1 */
+#define Hit_Writeback_Inv_T                              0x16            /* 5           2 */
+#define Hit_Writeback_Inv_S                              0x17            /* 5           3 */
+#define Hit_Writeback_D                                  0x19            /* 6           1 */
+#define Hit_Writeback_T                                  0x1A            /* 6           1 */
+#define Hit_Writeback_S                                  0x1B            /* 6           3 */
+#define Fetch_Lock_I                                     0x1C            /* 7           0 */
+#define Fetch_Lock_D                                     0x1D            /* 7           1 */
+
 
 #define MIPS32_ARCH_REL1 0x0
 #define MIPS32_ARCH_REL2 0x1
@@ -165,6 +326,7 @@ struct mips32_algorithm {
 #define MIPS32_OP_MTHI	0x11u
 #define MIPS32_OP_MFLO	0x12u
 #define MIPS32_OP_MTLO	0x13u
+#define MIPS32_OP_MUL   0x02u
 #define MIPS32_OP_RDHWR	0x3Bu
 #define MIPS32_OP_SB	0x28u
 #define MIPS32_OP_SH	0x29u
@@ -176,6 +338,7 @@ struct mips32_algorithm {
 #define MIPS32_OP_SRL	0x03u
 #define MIPS32_OP_SYNCI	0x1Fu
 #define MIPS32_OP_SLL	0x00u
+#define MIPS32_OP_SLLV  0x04u
 #define MIPS32_OP_SLTI	0x0Au
 #define MIPS32_OP_MOVN	0x0Bu
 
@@ -221,6 +384,7 @@ struct mips32_algorithm {
 #define MIPS32_ISA_MFHI(reg)			MIPS32_R_INST(0, 0, 0, reg, 0, MIPS32_OP_MFHI)
 #define MIPS32_ISA_MTLO(reg)			MIPS32_R_INST(0, reg, 0, 0, 0, MIPS32_OP_MTLO)
 #define MIPS32_ISA_MTHI(reg)			MIPS32_R_INST(0, reg, 0, 0, 0, MIPS32_OP_MTHI)
+#define MIPS32_ISA_MUL(dst, src, t)             MIPS32_R_INST(28, src, t, dst, 0, MIPS32_OP_MUL)
 
 #define MIPS32_ISA_MOVN(dst, src, tar)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_MOVN)
 #define MIPS32_ISA_ORI(tar, src, val)		MIPS32_I_INST(MIPS32_OP_ORI, src, tar, val)
@@ -230,6 +394,7 @@ struct mips32_algorithm {
 #define MIPS32_ISA_SW(reg, off, base)		MIPS32_I_INST(MIPS32_OP_SW, base, reg, off)
 
 #define MIPS32_ISA_SLL(dst, src, sa)		MIPS32_R_INST(MIPS32_OP_SPECIAL, 0, src, dst, sa, MIPS32_OP_SLL)
+#define MIPS32_ISA_SLLV(dst, tar, src)          MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_SLLV)
 #define MIPS32_ISA_SLTI(tar, src, val)		MIPS32_I_INST(MIPS32_OP_SLTI, src, tar, val)
 #define MIPS32_ISA_SLTU(dst, src, tar)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_SLTU)
 #define MIPS32_ISA_SRL(reg, src, off)		MIPS32_R_INST(0, 0, src, reg, off, MIPS32_OP_SRL)
