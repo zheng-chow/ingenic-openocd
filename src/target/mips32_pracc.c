@@ -786,81 +786,9 @@ exit:
 	return ctx.retval;
 }
 
-static int mips32_pracc_write_mem_series(struct mips_ejtag *ejtag_info, uint32_t addr, int size, int count, const void *buf)
-{
-	int code_count = 0;
-	uint32_t ejtag_ctrl;
-	uint32_t redo_count = 0;
-	struct pracc_queue_info ctx = {.ejtag_info = ejtag_info};
-        pracc_queue_init(&ctx);
-	uint32_t conf;
-	(void)mips32_cp0_read(ejtag_info, &conf, 16, 0);
-	uint32_t rel = (conf & MIPS32_CONFIG0_AR_MASK) >> MIPS32_CONFIG0_AR_SHIFT;
-
-	static uint32_t CC_COPY = 13;
-	uint32_t copy_to_mem[] = {
-		MIPS32_LUI(ctx.isa,  15,     UPPER16(MIPS32_PRACC_TEXT)),
-		MIPS32_ORI(ctx.isa,  15, 15, LOWER16(MIPS32_PRACC_TEXT)),
-		MIPS32_LUI(ctx.isa,   8,     UPPER16((count - CC_COPY))),
-		MIPS32_ORI(ctx.isa,   8,  8, LOWER16((count - CC_COPY))),
-		MIPS32_LUI(ctx.isa,   9,     UPPER16((addr + (CC_COPY * 4)))),
-		MIPS32_ORI(ctx.isa,   9,  9, LOWER16((addr + (CC_COPY * 4)))),
-		MIPS32_LW(ctx.isa,   10,  0, 15),
-		MIPS32_SW(ctx.isa,   10,  0, 9),
-		MIPS32_ADDIU(ctx.isa, 9,  9, 4),
-		MIPS32_BGTZ(ctx.isa,  8,     NEG16(4)),
-		MIPS32_ADDIU(ctx.isa, 8,  8, LOWER16(-1)),
-		MIPS32_JR(ctx.isa,   15),
-		MIPS32_NOP,
-        };
-	
-
-	(void)mips32_pracc_write_mem_generic(ejtag_info, addr, 4, CC_COPY, copy_to_mem);
-	if ((KSEGX(addr) == KSEG1) || ((addr >= 0xff200000) && (addr <= 0xff3fffff)) == 0) {
-		(void)mips32_pracc_synchronize_cache(ejtag_info, addr, (addr + (CC_COPY * 4)), 3, rel);
-	}
-        pracc_add(&ctx, 0, MIPS32_LUI(ctx.isa, 15, UPPER16(addr)));
-        pracc_add(&ctx, 0, MIPS32_ORI(ctx.isa, 15, 15, LOWER16(addr)));
-        pracc_add(&ctx, 0, MIPS32_JR(ctx.isa, 15));
-        pracc_add(&ctx, 0, MIPS32_NOP);
-        ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 1);
-        pracc_queue_free(&ctx);
-	while(1) {
-                mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-		uint32_t data = *((uint32_t *)buf + code_count + CC_COPY);
-                mips_ejtag_drscan_32_out(ejtag_info, data);
-
-        	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-REDO:		ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-        	mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-		if ((ejtag_ctrl & EJTAG_CTRL_PRACC) != 0) {
-			if (code_count == (count - (int)CC_COPY)) {
-				break;
-			}
-			code_count++;
-		} else {
-			redo_count++;
-			LOG_DEBUG("REDO");
-			if (redo_count > 64) break;
-			else goto REDO;
-		}
-	}
-	(void)mips32_pracc_write_mem_generic(ejtag_info, addr, 4, CC_COPY, buf);
-
-	return ERROR_OK;
-}
-
 int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int size, int count, const void *buf)
 {
-	int retval;
-	if ((count < 64) || (size != 4)) {
-                retval = mips32_pracc_write_mem_generic(ejtag_info, addr, size, count, buf);
-        } else if (size == 4) {
-                retval = mips32_pracc_write_mem_series(ejtag_info, addr, size, count, buf);
-        } else {
-                LOG_DEBUG("mips32_pracc_write_mem error");
-                retval = ERROR_FAIL;
-        }
+	int retval = mips32_pracc_write_mem_generic(ejtag_info, addr, size, count, buf);
         if (retval != ERROR_OK) {
                 return retval;
         }
