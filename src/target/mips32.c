@@ -417,7 +417,7 @@ int mips32_save_context(struct target *target)
 			}
 		}
 
-		for (i = MIPS32_F0; i < MIPS32_NUM_REGS; i++) {
+		for (i = MIPS32_F0; i < MIPS32_FIR; i++) {
 			if (mips32->core_cache->reg_list[i].valid) {
 				retval = mips32->read_core_reg(target, i);
 				if (retval != ERROR_OK) {
@@ -448,37 +448,36 @@ int mips32_save_context(struct target *target)
 			LOG_DEBUG("reading status register failed");
 			return retval;
 		}
-
-		/* Check if Access to COP1 and COP2 enabled */
-		if (((status & 0x60000000) >> 29) != 3) {
-			if ((retval = mips32_pracc_cp0_write(ejtag_info, (status | STATUS_CU1_MASK | STATUS_CU2_MASK), 12, 0)) != ERROR_OK) {
-				LOG_DEBUG("writing status register failed");
-					return retval;
-			}
-		}
-		
-
-		/* read core registers */
-		retval = mips32_pracc_read_msa_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_W0]));
-		if (retval != ERROR_OK)
-			LOG_INFO("mips32->read_fpu_reg failed: status: 0x%x, tmp_status: 0x%x", status, tmp_status);
-		
-		/* restore previous setting */
-		if ((mips32_pracc_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
-		LOG_DEBUG("writing status register failed");
-
-		for (i = MIPS32_W0; i < MIPS32_NUM_REGS; i++) {
-			if (mips32->core_cache->reg_list[i].valid) {
-				retval = mips32->read_core_reg(target, i);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("mips32->read_core_reg failed");
-					return retval;
+		/* check if MSAEN is set */
+		if (((config5 & MSAEN_MASK) >> MSAEN_OFFSET) == 1) {
+			/* Check if Access to COP1 and COP2 enabled */
+			if (((status & 0x60000000) >> 29) != 3) {
+				if ((retval = mips32_pracc_cp0_write(ejtag_info, (status | STATUS_CU1_MASK | STATUS_CU2_MASK), 12, 0)) != ERROR_OK) {
+					LOG_DEBUG("writing status register failed");
+						return retval;
 				}
 			}
+			/* read core registers */
+			retval = mips32_pracc_read_msa_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_W0]));
+			if (retval != ERROR_OK)
+				LOG_INFO("mips32->read_fpu_reg failed: status: 0x%x, tmp_status: 0x%x", status, tmp_status);
+			
+			/* restore previous setting */
+			if ((mips32_pracc_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
+			LOG_DEBUG("writing status register failed");
+
+			for (i = MIPS32_W0; i < MIPS32_NUM_REGS; i++) {
+				if (mips32->core_cache->reg_list[i].valid) {
+					retval = mips32->read_core_reg(target, i);
+					if (retval != ERROR_OK) {
+						LOG_DEBUG("mips32->read_core_reg failed");
+						return retval;
+					}
+				}
+			}
+
 		}
-
 	}
-
 	return ERROR_OK;
 }
 
@@ -590,9 +589,53 @@ int mips32_restore_context(struct target *target)
 		}
 	}
 
+	if (mips32->msa_implemented == MSA_IMP) {
+		uint32_t config5;
+		uint32_t status;
+		uint32_t tmp_status;
+
+		/* Read Config5 registers */
+		retval = mips32_pracc_cp0_read(ejtag_info, &config5, 16, 5);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("reading config1 register failed");
+			return retval;
+		}
+
+		/* Read Config3 registers */
+		retval = mips32_pracc_cp0_read(ejtag_info, &config3, 16, 3);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("reading config3 register failed");
+			return retval;
+		}
+
+
+		/* check if FPU configured and Multi-thread core*/
+		if (((config5 & MSAEN_MASK) >> MSAEN_SHIFT) == 1) {
+				/* Read Status register, save it and modify to enable CP0 */
+				retval = mips32_pracc_cp0_read(ejtag_info, &status, 12, 0);
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("reading status register failed");
+					return retval;
+				}
+
+				if ((retval = mips32_pracc_cp0_write(ejtag_info, (status | STATUS_CU1_MASK | STATUS_CU2_MASK), 12, 0)) != ERROR_OK) {
+					LOG_DEBUG("writing status register failed");
+					return retval;
+				}
+
+
+				/* read core registers */
+				retval = mips32_pracc_write_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_W0]));
+				if (retval != ERROR_OK)
+					LOG_INFO("mips32->read_core_reg failed");
+
+				/* restore previous setting */
+				if ((mips32_pracc_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
+					LOG_DEBUG("writing status register failed");
+		}
+	}
 	/* write core regs */
 	mips32_pracc_write_regs(ejtag_info, mips32->core_regs);
-
 	return ERROR_OK;
 }
 

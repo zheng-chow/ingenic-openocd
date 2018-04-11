@@ -85,6 +85,10 @@ enum {
 
 #define MIPS32NUMDSPREGS 9
 
+/* MSA */
+
+#define	MSAEN_MASK		1 << MSAEN_SHIFT
+#define MSAEN_SHIFT		27		
 
 
 /* Bit Mask indicating CP0 register supported by this core */
