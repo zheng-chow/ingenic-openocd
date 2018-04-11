@@ -1192,7 +1192,6 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	pracc_swap16_array(ejtag_info, handler_code, ARRAY_SIZE(handler_code));
 		/* write program into RAM */
 	if (write_t != ejtag_info->fast_access_save) {
-		LOG_DEBUG("source->address:0x%08x", (uint32_t)source->address);
 		mips32_pracc_write_mem(ejtag_info, source->address, 4, ARRAY_SIZE(handler_code), handler_code);
 		/* save previous operation to speed to any consecutive read/writes */
 		ejtag_info->fast_access_save = write_t;
@@ -1234,8 +1233,6 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
                 /* Clear the access pending bit (let the processor eat!) */
                 mips32_pracc_finish(ejtag_info);
 	}
-	
-	/* wait PrAcc pending bit for FASTDATA write, read address */
 
 	if (ejtag_info->ejtag_version > EJTAG_VERSION_25) {
 		/* Send the load start address */
