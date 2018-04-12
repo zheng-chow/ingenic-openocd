@@ -22,25 +22,25 @@
 
 #include "breakpoints.h"
 #include "mips32.h"
-#include "mips_xburst1.h"
+#include "mips_xburst.h"
 #include "mips32_dmaacc.h"
 #include "target_type.h"
 #include "register.h"
 
-static void mips_xburst1_enable_breakpoints(struct target *target);
-static void mips_xburst1_enable_watchpoints(struct target *target);
-static int mips_xburst1_set_breakpoint(struct target *target,
+static void mips_xburst_enable_breakpoints(struct target *target);
+static void mips_xburst_enable_watchpoints(struct target *target);
+static int mips_xburst_set_breakpoint(struct target *target,
 		struct breakpoint *breakpoint);
-static int mips_xburst1_unset_breakpoint(struct target *target,
+static int mips_xburst_unset_breakpoint(struct target *target,
 		struct breakpoint *breakpoint);
-static int mips_xburst1_internal_restore(struct target *target, int current,
+static int mips_xburst_internal_restore(struct target *target, int current,
 		target_addr_t address, int handle_breakpoints,
 		int debug_execution);
-static int mips_xburst1_halt(struct target *target);
-static int mips_xburst1_bulk_write_memory(struct target *target, target_addr_t address,
+static int mips_xburst_halt(struct target *target);
+static int mips_xburst_bulk_write_memory(struct target *target, target_addr_t address,
 		uint32_t count, const uint8_t *buffer);
 
-static int mips_xburst1_examine_debug_reason(struct target *target)
+static int mips_xburst_examine_debug_reason(struct target *target)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
@@ -83,7 +83,7 @@ static int mips_xburst1_examine_debug_reason(struct target *target)
 	return ERROR_OK;
 }
 
-static int mips_xburst1_debug_entry(struct target *target)
+static int mips_xburst_debug_entry(struct target *target)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
@@ -97,7 +97,7 @@ static int mips_xburst1_debug_entry(struct target *target)
 	mips32_configure_break_unit(target);
 
 	/* attempt to find halt reason */
-	mips_xburst1_examine_debug_reason(target);
+	mips_xburst_examine_debug_reason(target);
 
 	mips32_read_config_regs(target);
 
@@ -111,7 +111,7 @@ static int mips_xburst1_debug_entry(struct target *target)
 	return ERROR_OK;
 }
 
-static struct target *get_mips_xburst1(struct target *target, int32_t coreid)
+static struct target *get_mips_xburst(struct target *target, int32_t coreid)
 {
 	struct target_list *head;
 	struct target *curr;
@@ -126,7 +126,7 @@ static struct target *get_mips_xburst1(struct target *target, int32_t coreid)
 	return target;
 }
 
-static int mips_xburst1_halt_smp(struct target *target)
+static int mips_xburst_halt_smp(struct target *target)
 {
 	int retval = ERROR_OK;
 	struct target_list *head;
@@ -136,7 +136,7 @@ static int mips_xburst1_halt_smp(struct target *target)
 		int ret = ERROR_OK;
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_HALTED))
-			ret = mips_xburst1_halt(curr);
+			ret = mips_xburst_halt(curr);
 
 		if (ret != ERROR_OK) {
 			LOG_ERROR("halt failed target->coreid: %" PRId32, curr->coreid);
@@ -153,12 +153,12 @@ static int update_halt_gdb(struct target *target)
 	if (target->gdb_service->core[0] == -1) {
 		target->gdb_service->target = target;
 		target->gdb_service->core[0] = target->coreid;
-		retval = mips_xburst1_halt_smp(target);
+		retval = mips_xburst_halt_smp(target);
 	}
 	return retval;
 }
 
-static int mips_xburst1_poll(struct target *target)
+static int mips_xburst_poll(struct target *target)
 {
 	int retval = ERROR_OK;
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -174,7 +174,7 @@ static int mips_xburst1_poll(struct target *target)
 		(target->gdb_service) &&
 		(target->gdb_service->target == NULL)) {
 		target->gdb_service->target =
-			get_mips_xburst1(target, target->gdb_service->core[1]);
+			get_mips_xburst(target, target->gdb_service->core[1]);
 		target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		return retval;
 	}
@@ -185,7 +185,7 @@ static int mips_xburst1_poll(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	ejtag_info->isa = 0; // ingenic xburst1 has only MIPS32 ISA
+	ejtag_info->isa = 0; // ingenic xburst has only MIPS32 ISA
 
 	/* clear this bit before handling polling
 	 * as after reset registers will read zero */
@@ -215,7 +215,7 @@ static int mips_xburst1_poll(struct target *target)
 			 */
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_NORMALBOOT);
 			target->state = TARGET_HALTED;
-			retval = mips_xburst1_debug_entry(target);
+			retval = mips_xburst_debug_entry(target);
 			if (retval != ERROR_OK)
 				return retval;
 
@@ -230,7 +230,7 @@ static int mips_xburst1_poll(struct target *target)
 		} else if (target->state == TARGET_DEBUG_RUNNING) {
 			target->state = TARGET_HALTED;
 
-			retval = mips_xburst1_debug_entry(target);
+			retval = mips_xburst_debug_entry(target);
 			if (retval != ERROR_OK)
 				return retval;
 
@@ -248,7 +248,7 @@ static int mips_xburst1_poll(struct target *target)
 	return ERROR_OK;
 }
 
-static int mips_xburst1_halt(struct target *target)
+static int mips_xburst_halt(struct target *target)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
@@ -269,7 +269,7 @@ static int mips_xburst1_halt(struct target *target)
 			return ERROR_TARGET_FAILURE;
 		} else {
 			/* we came here in a reset_halt or reset_init sequence
-			 * debug entry was already prepared in mips_xburst1_assert_reset()
+			 * debug entry was already prepared in mips_xburst_assert_reset()
 			 */
 			target->debug_reason = DBG_REASON_DBGRQ;
 
@@ -285,10 +285,10 @@ static int mips_xburst1_halt(struct target *target)
 	return ERROR_OK;
 }
 
-static int mips_xburst1_assert_reset(struct target *target)
+static int mips_xburst_assert_reset(struct target *target)
 {
-	struct mips_xburst1_common *mips_xburst1 = target_to_xburst1(target);
-	struct mips_ejtag *ejtag_info = &mips_xburst1->mips32.ejtag_info;
+	struct mips_xburst_common *mips_xburst = target_to_xburst(target);
+	struct mips_ejtag *ejtag_info = &mips_xburst->mips32.ejtag_info;
 
 	/* TODO: apply hw reset signal in not examined state */
 	if (!(target_was_examined(target))) {
@@ -337,7 +337,7 @@ static int mips_xburst1_assert_reset(struct target *target)
 	target->state = TARGET_RESET;
 	jtag_add_sleep(50000);
 
-	register_cache_invalidate(mips_xburst1->mips32.core_cache);
+	register_cache_invalidate(mips_xburst->mips32.core_cache);
 
 	if (target->reset_halt) {
 		int retval = target_halt(target);
@@ -348,7 +348,7 @@ static int mips_xburst1_assert_reset(struct target *target)
 	return ERROR_OK;
 }
 
-static int mips_xburst1_deassert_reset(struct target *target)
+static int mips_xburst_deassert_reset(struct target *target)
 {
 	LOG_DEBUG("target->state: %s", target_state_name(target));
 
@@ -358,7 +358,7 @@ static int mips_xburst1_deassert_reset(struct target *target)
 	return ERROR_OK;
 }
 
-static int mips_xburst1_single_step_core(struct target *target)
+static int mips_xburst_single_step_core(struct target *target)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
@@ -372,12 +372,12 @@ static int mips_xburst1_single_step_core(struct target *target)
 	/* exit debug mode */
 	mips_ejtag_exit_debug(ejtag_info);
 
-	mips_xburst1_debug_entry(target);
+	mips_xburst_debug_entry(target);
 
 	return ERROR_OK;
 }
 
-static int mips_xburst1_restore_smp(struct target *target, uint32_t address, int handle_breakpoints)
+static int mips_xburst_restore_smp(struct target *target, uint32_t address, int handle_breakpoints)
 {
 	int retval = ERROR_OK;
 	struct target_list *head;
@@ -389,7 +389,7 @@ static int mips_xburst1_restore_smp(struct target *target, uint32_t address, int
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_RUNNING)) {
 			/*  resume current address , not in step mode */
-			ret = mips_xburst1_internal_restore(curr, 1, address,
+			ret = mips_xburst_internal_restore(curr, 1, address,
 						   handle_breakpoints, 0);
 
 			if (ret != ERROR_OK) {
@@ -403,7 +403,7 @@ static int mips_xburst1_restore_smp(struct target *target, uint32_t address, int
 	return retval;
 }
 
-static int mips_xburst1_internal_restore(struct target *target, int current,
+static int mips_xburst_internal_restore(struct target *target, int current,
 		target_addr_t address, int handle_breakpoints, int debug_execution)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -418,13 +418,13 @@ static int mips_xburst1_internal_restore(struct target *target, int current,
 
 	if (!debug_execution) {
 		target_free_all_working_areas(target);
-		mips_xburst1_enable_breakpoints(target);
-		mips_xburst1_enable_watchpoints(target);
+		mips_xburst_enable_breakpoints(target);
+		mips_xburst_enable_watchpoints(target);
 	}
 
 	/* current = 1: continue on current pc, otherwise continue at <address> */
 	if (!current) {
-		mips_xburst1_isa_filter(mips32->isa_imp, &address);
+		mips_xburst_isa_filter(mips32->isa_imp, &address);
 		buf_set_u32(mips32->core_cache->reg_list[MIPS32_PC].value, 0, 32, address);
 		mips32->core_cache->reg_list[MIPS32_PC].dirty = 1;
 		mips32->core_cache->reg_list[MIPS32_PC].valid = 1;
@@ -447,9 +447,9 @@ static int mips_xburst1_internal_restore(struct target *target, int current,
 		if (breakpoint) {
 			LOG_DEBUG("unset breakpoint at " TARGET_ADDR_FMT "",
 					  breakpoint->address);
-			mips_xburst1_unset_breakpoint(target, breakpoint);
-			mips_xburst1_single_step_core(target);
-			mips_xburst1_set_breakpoint(target, breakpoint);
+			mips_xburst_unset_breakpoint(target, breakpoint);
+			mips_xburst_single_step_core(target);
+			mips_xburst_set_breakpoint(target, breakpoint);
 		}
 	}
 
@@ -476,7 +476,7 @@ static int mips_xburst1_internal_restore(struct target *target, int current,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_resume(struct target *target, int current,
+static int mips_xburst_resume(struct target *target, int current,
 		target_addr_t address, int handle_breakpoints, int debug_execution)
 {
 	int retval = ERROR_OK;
@@ -491,19 +491,19 @@ static int mips_xburst1_resume(struct target *target, int current,
 		return retval;
 	}
 
-	retval = mips_xburst1_internal_restore(target, current, address,
+	retval = mips_xburst_internal_restore(target, current, address,
 				handle_breakpoints,
 				debug_execution);
 
 	if (retval == ERROR_OK && target->smp) {
 		target->gdb_service->core[0] = -1;
-		retval = mips_xburst1_restore_smp(target, address, handle_breakpoints);
+		retval = mips_xburst_restore_smp(target, address, handle_breakpoints);
 	}
 
 	return retval;
 }
 
-static int mips_xburst1_step(struct target *target, int current,
+static int mips_xburst_step(struct target *target, int current,
 		target_addr_t address, int handle_breakpoints)
 {
 	/* get pointers to arch-specific information */
@@ -518,7 +518,7 @@ static int mips_xburst1_step(struct target *target, int current,
 
 	/* current = 1: continue on current pc, otherwise continue at <address> */
 	if (!current) {
-		mips_xburst1_isa_filter(mips32->isa_imp, &address);
+		mips_xburst_isa_filter(mips32->isa_imp, &address);
 		buf_set_u32(mips32->core_cache->reg_list[MIPS32_PC].value, 0, 32, address);
 		mips32->core_cache->reg_list[MIPS32_PC].dirty = 1;
 		mips32->core_cache->reg_list[MIPS32_PC].valid = 1;
@@ -529,7 +529,7 @@ static int mips_xburst1_step(struct target *target, int current,
 		breakpoint = breakpoint_find(target,
 				buf_get_u32(mips32->core_cache->reg_list[MIPS32_PC].value, 0, 32));
 		if (breakpoint)
-			mips_xburst1_unset_breakpoint(target, breakpoint);
+			mips_xburst_unset_breakpoint(target, breakpoint);
 	}
 
 	/* restore context */
@@ -552,29 +552,29 @@ static int mips_xburst1_step(struct target *target, int current,
 	register_cache_invalidate(mips32->core_cache);
 
 	LOG_DEBUG("target stepped ");
-	mips_xburst1_debug_entry(target);
+	mips_xburst_debug_entry(target);
 
 	if (breakpoint)
-		mips_xburst1_set_breakpoint(target, breakpoint);
+		mips_xburst_set_breakpoint(target, breakpoint);
 
 	target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 
 	return ERROR_OK;
 }
 
-static void mips_xburst1_enable_breakpoints(struct target *target)
+static void mips_xburst_enable_breakpoints(struct target *target)
 {
 	struct breakpoint *breakpoint = target->breakpoints;
 
 	/* set any pending breakpoints */
 	while (breakpoint) {
 		if (breakpoint->set == 0)
-			mips_xburst1_set_breakpoint(target, breakpoint);
+			mips_xburst_set_breakpoint(target, breakpoint);
 		breakpoint = breakpoint->next;
 	}
 }
 
-static int mips_xburst1_set_breakpoint(struct target *target,
+static int mips_xburst_set_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -699,7 +699,7 @@ static int mips_xburst1_set_breakpoint(struct target *target,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_unset_breakpoint(struct target *target,
+static int mips_xburst_unset_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
 	/* get pointers to arch-specific information */
@@ -787,7 +787,7 @@ static int mips_xburst1_unset_breakpoint(struct target *target,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_add_breakpoint(struct target *target, struct breakpoint *breakpoint)
+static int mips_xburst_add_breakpoint(struct target *target, struct breakpoint *breakpoint)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 
@@ -806,10 +806,10 @@ static int mips_xburst1_add_breakpoint(struct target *target, struct breakpoint 
 		mips32->num_inst_bpoints_avail--;
 	}
 
-	return mips_xburst1_set_breakpoint(target, breakpoint);
+	return mips_xburst_set_breakpoint(target, breakpoint);
 }
 
-static int mips_xburst1_remove_breakpoint(struct target *target,
+static int mips_xburst_remove_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
 	/* get pointers to arch-specific information */
@@ -821,7 +821,7 @@ static int mips_xburst1_remove_breakpoint(struct target *target,
 	}
 
 	if (breakpoint->set)
-		mips_xburst1_unset_breakpoint(target, breakpoint);
+		mips_xburst_unset_breakpoint(target, breakpoint);
 
 	if (breakpoint->type == BKPT_HARD)
 		mips32->num_inst_bpoints_avail++;
@@ -829,7 +829,7 @@ static int mips_xburst1_remove_breakpoint(struct target *target,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_set_watchpoint(struct target *target,
+static int mips_xburst_set_watchpoint(struct target *target,
 		struct watchpoint *watchpoint)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -907,7 +907,7 @@ static int mips_xburst1_set_watchpoint(struct target *target,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_unset_watchpoint(struct target *target,
+static int mips_xburst_unset_watchpoint(struct target *target,
 		struct watchpoint *watchpoint)
 {
 	/* get pointers to arch-specific information */
@@ -934,7 +934,7 @@ static int mips_xburst1_unset_watchpoint(struct target *target,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_add_watchpoint(struct target *target, struct watchpoint *watchpoint)
+static int mips_xburst_add_watchpoint(struct target *target, struct watchpoint *watchpoint)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 
@@ -945,11 +945,11 @@ static int mips_xburst1_add_watchpoint(struct target *target, struct watchpoint 
 
 	mips32->num_data_bpoints_avail--;
 
-	mips_xburst1_set_watchpoint(target, watchpoint);
+	mips_xburst_set_watchpoint(target, watchpoint);
 	return ERROR_OK;
 }
 
-static int mips_xburst1_remove_watchpoint(struct target *target,
+static int mips_xburst_remove_watchpoint(struct target *target,
 		struct watchpoint *watchpoint)
 {
 	/* get pointers to arch-specific information */
@@ -961,26 +961,26 @@ static int mips_xburst1_remove_watchpoint(struct target *target,
 	}
 
 	if (watchpoint->set)
-		mips_xburst1_unset_watchpoint(target, watchpoint);
+		mips_xburst_unset_watchpoint(target, watchpoint);
 
 	mips32->num_data_bpoints_avail++;
 
 	return ERROR_OK;
 }
 
-static void mips_xburst1_enable_watchpoints(struct target *target)
+static void mips_xburst_enable_watchpoints(struct target *target)
 {
 	struct watchpoint *watchpoint = target->watchpoints;
 
 	/* set any pending watchpoints */
 	while (watchpoint) {
 		if (watchpoint->set == 0)
-			mips_xburst1_set_watchpoint(target, watchpoint);
+			mips_xburst_set_watchpoint(target, watchpoint);
 		watchpoint = watchpoint->next;
 	}
 }
 
-static int mips_xburst1_read_memory(struct target *target, target_addr_t address,
+static int mips_xburst_read_memory(struct target *target, target_addr_t address,
 		uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -1035,7 +1035,7 @@ static int mips_xburst1_read_memory(struct target *target, target_addr_t address
 	return retval;
 }
 
-static int mips_xburst1_write_memory(struct target *target, target_addr_t address,
+static int mips_xburst_write_memory(struct target *target, target_addr_t address,
 		uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -1050,7 +1050,7 @@ static int mips_xburst1_write_memory(struct target *target, target_addr_t addres
 	}
 
 	if (size == 4 && count > 32) {
-		int retval = mips_xburst1_bulk_write_memory(target, address, count, buffer);
+		int retval = mips_xburst_bulk_write_memory(target, address, count, buffer);
 		if (retval == ERROR_OK)
 			return ERROR_OK;
 		LOG_WARNING("Falling back to non-bulk write");
@@ -1097,7 +1097,7 @@ static int mips_xburst1_write_memory(struct target *target, target_addr_t addres
 	return ERROR_OK;
 }
 
-static int mips_xburst1_init_target(struct command_context *cmd_ctx,
+static int mips_xburst_init_target(struct command_context *cmd_ctx,
 		struct target *target)
 {
 	mips32_build_reg_cache(target);
@@ -1105,33 +1105,33 @@ static int mips_xburst1_init_target(struct command_context *cmd_ctx,
 	return ERROR_OK;
 }
 
-static int mips_xburst1_init_arch_info(struct target *target,
-		struct mips_xburst1_common *mips_xburst1, struct jtag_tap *tap)
+static int mips_xburst_init_arch_info(struct target *target,
+		struct mips_xburst_common *mips_xburst, struct jtag_tap *tap)
 {
-	struct mips32_common *mips32 = &mips_xburst1->mips32;
+	struct mips32_common *mips32 = &mips_xburst->mips32;
 
-	mips_xburst1->common_magic = MIPSXBURST1_COMMON_MAGIC;
+	mips_xburst->common_magic = MIPSXBURST_COMMON_MAGIC;
 
 	/* initialize mips4k specific info */
 	mips32_init_arch_info(target, mips32, tap);
-	mips32->arch_info = mips_xburst1;
+	mips32->arch_info = mips_xburst;
 
 	return ERROR_OK;
 }
 
-static int mips_xburst1_target_create(struct target *target, Jim_Interp *interp)
+static int mips_xburst_target_create(struct target *target, Jim_Interp *interp)
 {
-	struct mips_xburst1_common *mips_xburst1 = calloc(1, sizeof(struct mips_xburst1_common));
+	struct mips_xburst_common *mips_xburst = calloc(1, sizeof(struct mips_xburst_common));
 
-	mips_xburst1_init_arch_info(target, mips_xburst1, target->tap);
+	mips_xburst_init_arch_info(target, mips_xburst, target->tap);
 
 	return ERROR_OK;
 }
 
-static int mips_xburst1_examine(struct target *target)
+static int mips_xburst_examine(struct target *target)
 {
-	struct mips_xburst1_common *mips_xburst1 = target_to_xburst1(target);
-	struct mips_ejtag *ejtag_info = &mips_xburst1->mips32.ejtag_info;
+	struct mips_xburst_common *mips_xburst = target_to_xburst(target);
+	struct mips_ejtag *ejtag_info = &mips_xburst->mips32.ejtag_info;
 
 	if (!target_was_examined(target)) {
 		int retval = mips_ejtag_get_idcode(ejtag_info);
@@ -1149,7 +1149,7 @@ static int mips_xburst1_examine(struct target *target)
 	return mips32_examine(target);
 }
 
-static int mips_xburst1_bulk_write_memory(struct target *target, target_addr_t address,
+static int mips_xburst_bulk_write_memory(struct target *target, target_addr_t address,
 		uint32_t count, const uint8_t *buffer)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -1216,24 +1216,24 @@ static int mips_xburst1_bulk_write_memory(struct target *target, target_addr_t a
 	return retval;
 }
 
-static int mips_xburst1_verify_pointer(struct command_context *cmd_ctx,
-		struct mips_xburst1_common *mips_xburst1)
+static int mips_xburst_verify_pointer(struct command_context *cmd_ctx,
+		struct mips_xburst_common *mips_xburst)
 {
-	if (mips_xburst1->common_magic != MIPSXBURST1_COMMON_MAGIC) {
-		command_print(cmd_ctx, "target is not an MIPS_XBURST1");
+	if (mips_xburst->common_magic != MIPSXBURST_COMMON_MAGIC) {
+		command_print(cmd_ctx, "target is not an MIPS_XBURST");
 		return ERROR_TARGET_INVALID;
 	}
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(mips_xburst1_handle_cp0_command)
+COMMAND_HANDLER(mips_xburst_handle_cp0_command)
 {
 	int retval;
 	struct target *target = get_current_target(CMD_CTX);
-	struct mips_xburst1_common *mips_xburst1 = target_to_xburst1(target);
-	struct mips_ejtag *ejtag_info = &mips_xburst1->mips32.ejtag_info;
+	struct mips_xburst_common *mips_xburst = target_to_xburst(target);
+	struct mips_ejtag *ejtag_info = &mips_xburst->mips32.ejtag_info;
 
-	retval = mips_xburst1_verify_pointer(CMD_CTX, mips_xburst1);
+	retval = mips_xburst_verify_pointer(CMD_CTX, mips_xburst);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1280,7 +1280,7 @@ COMMAND_HANDLER(mips_xburst1_handle_cp0_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(mips_xburst1_handle_smp_off_command)
+COMMAND_HANDLER(mips_xburst_handle_smp_off_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	/* check target is an smp target */
@@ -1300,7 +1300,7 @@ COMMAND_HANDLER(mips_xburst1_handle_smp_off_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(mips_xburst1_handle_smp_on_command)
+COMMAND_HANDLER(mips_xburst_handle_smp_on_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	struct target_list *head;
@@ -1317,7 +1317,7 @@ COMMAND_HANDLER(mips_xburst1_handle_smp_on_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(mips_xburst1_handle_smp_gdb_command)
+COMMAND_HANDLER(mips_xburst_handle_smp_gdb_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	int retval = ERROR_OK;
@@ -1338,11 +1338,11 @@ COMMAND_HANDLER(mips_xburst1_handle_smp_gdb_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(mips_xburst1_handle_scan_delay_command)
+COMMAND_HANDLER(mips_xburst_handle_scan_delay_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
-	struct mips_xburst1_common *mips_xburst1 = target_to_xburst1(target);
-	struct mips_ejtag *ejtag_info = &mips_xburst1->mips32.ejtag_info;
+	struct mips_xburst_common *mips_xburst = target_to_xburst(target);
+	struct mips_ejtag *ejtag_info = &mips_xburst->mips32.ejtag_info;
 
 	if (CMD_ARGC == 1)
 		COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], ejtag_info->scan_delay);
@@ -1361,38 +1361,38 @@ COMMAND_HANDLER(mips_xburst1_handle_scan_delay_command)
 	return ERROR_OK;
 }
 
-static const struct command_registration mips_xburst1_exec_command_handlers[] = {
+static const struct command_registration mips_xburst_exec_command_handlers[] = {
 	{
 		.name = "cp0",
-		.handler = mips_xburst1_handle_cp0_command,
+		.handler = mips_xburst_handle_cp0_command,
 		.mode = COMMAND_EXEC,
 		.usage = "regnum [value]",
 		.help = "display/modify cp0 register",
 	},
 	{
 		.name = "smp_off",
-		.handler = mips_xburst1_handle_smp_off_command,
+		.handler = mips_xburst_handle_smp_off_command,
 		.mode = COMMAND_EXEC,
 		.help = "Stop smp handling",
 		.usage = "",},
 
 	{
 		.name = "smp_on",
-		.handler = mips_xburst1_handle_smp_on_command,
+		.handler = mips_xburst_handle_smp_on_command,
 		.mode = COMMAND_EXEC,
 		.help = "Restart smp handling",
 		.usage = "",
 	},
 	{
 		.name = "smp_gdb",
-		.handler = mips_xburst1_handle_smp_gdb_command,
+		.handler = mips_xburst_handle_smp_gdb_command,
 		.mode = COMMAND_EXEC,
 		.help = "display/fix current core played to gdb",
 		.usage = "",
 	},
 	{
 		.name = "scan_delay",
-		.handler = mips_xburst1_handle_scan_delay_command,
+		.handler = mips_xburst_handle_scan_delay_command,
 		.mode = COMMAND_ANY,
 		.help = "display/set scan delay in nano seconds",
 		.usage = "[value]",
@@ -1400,49 +1400,49 @@ static const struct command_registration mips_xburst1_exec_command_handlers[] = 
 	COMMAND_REGISTRATION_DONE
 };
 
-const struct command_registration mips_xburst1_command_handlers[] = {
+const struct command_registration mips_xburst_command_handlers[] = {
 	{
 		.chain = mips32_command_handlers,
 	},
 	{
-		.name = "mips_xburst1",
+		.name = "mips_xburst",
 		.mode = COMMAND_ANY,
-		.help = "mips_xburst1 command group",
+		.help = "mips_xburst command group",
 		.usage = "",
-		.chain = mips_xburst1_exec_command_handlers,
+		.chain = mips_xburst_exec_command_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type mips_xburst1_target = {
-	.name = "mips_xburst1",
+struct target_type mips_xburst_target = {
+	.name = "mips_xburst",
 
-	.poll = mips_xburst1_poll,
+	.poll = mips_xburst_poll,
 	.arch_state = mips32_arch_state,
 
-	.halt = mips_xburst1_halt,
-	.resume = mips_xburst1_resume,
-	.step = mips_xburst1_step,
+	.halt = mips_xburst_halt,
+	.resume = mips_xburst_resume,
+	.step = mips_xburst_step,
 
-	.assert_reset = mips_xburst1_assert_reset,
-	.deassert_reset = mips_xburst1_deassert_reset,
+	.assert_reset = mips_xburst_assert_reset,
+	.deassert_reset = mips_xburst_deassert_reset,
 
 	.get_gdb_reg_list = mips32_get_gdb_reg_list,
 
-	.read_memory = mips_xburst1_read_memory,
-	.write_memory = mips_xburst1_write_memory,
+	.read_memory = mips_xburst_read_memory,
+	.write_memory = mips_xburst_write_memory,
 	.checksum_memory = mips32_checksum_memory,
 	.blank_check_memory = mips32_blank_check_memory,
 
 	.run_algorithm = mips32_run_algorithm,
 
-	.add_breakpoint = mips_xburst1_add_breakpoint,
-	.remove_breakpoint = mips_xburst1_remove_breakpoint,
-	.add_watchpoint = mips_xburst1_add_watchpoint,
-	.remove_watchpoint = mips_xburst1_remove_watchpoint,
+	.add_breakpoint = mips_xburst_add_breakpoint,
+	.remove_breakpoint = mips_xburst_remove_breakpoint,
+	.add_watchpoint = mips_xburst_add_watchpoint,
+	.remove_watchpoint = mips_xburst_remove_watchpoint,
 
-	.commands = mips_xburst1_command_handlers,
-	.target_create = mips_xburst1_target_create,
-	.init_target = mips_xburst1_init_target,
-	.examine = mips_xburst1_examine,
+	.commands = mips_xburst_command_handlers,
+	.target_create = mips_xburst_target_create,
+	.init_target = mips_xburst_init_target,
+	.examine = mips_xburst_examine,
 };
