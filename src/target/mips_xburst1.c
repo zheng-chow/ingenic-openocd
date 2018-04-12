@@ -47,12 +47,10 @@ static int mips_xburst1_examine_debug_reason(struct target *target)
 	uint32_t break_status;
 	int retval;
 
-	if ((target->debug_reason != DBG_REASON_DBGRQ)
-			&& (target->debug_reason != DBG_REASON_SINGLESTEP)) {
+	if ((target->debug_reason != DBG_REASON_DBGRQ) && (target->debug_reason != DBG_REASON_SINGLESTEP)) {
 		if (ejtag_info->debug_caps & EJTAG_DCR_IB) {
 			/* get info about inst breakpoint support */
-			retval = target_read_u32(target,
-				ejtag_info->ejtag_ibs_addr, &break_status);
+			retval = target_read_u32(target, ejtag_info->ejtag_ibs_addr, &break_status);
 			if (retval != ERROR_OK)
 				return retval;
 			if (break_status & 0x1f) {
@@ -105,10 +103,6 @@ static int mips_xburst1_debug_entry(struct target *target)
 
 	/* default to mips32 isa, it will be changed below if required */
 	mips32->isa_mode = MIPS32_ISA_MIPS32;
-
-	/* other than mips32 only and isa bit set ? */
-	if (mips32->isa_imp && buf_get_u32(mips32->core_cache->reg_list[MIPS32_PC].value, 0, 1))
-		mips32->isa_mode = mips32->isa_imp == 2 ? MIPS32_ISA_MIPS16E : MIPS32_ISA_MMIPS32;
 
 	LOG_DEBUG("entered debug state at PC 0x%" PRIx32 ", target->state: %s",
 			buf_get_u32(mips32->core_cache->reg_list[MIPS32_PC].value, 0, 32),
@@ -191,7 +185,7 @@ static int mips_xburst1_poll(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	ejtag_info->isa = (ejtag_ctrl & EJTAG_CTRL_DBGISA) ? 1 : 0;
+	ejtag_info->isa = 0; // ingenic xburst1 has only MIPS32 ISA
 
 	/* clear this bit before handling polling
 	 * as after reset registers will read zero */
@@ -250,8 +244,6 @@ static int mips_xburst1_poll(struct target *target)
 		}
 	} else
 		target->state = TARGET_RUNNING;
-
-/*	LOG_DEBUG("ctrl = 0x%08X", ejtag_ctrl); */
 
 	return ERROR_OK;
 }
@@ -321,15 +313,12 @@ static int mips_xburst1_assert_reset(struct target *target)
 		srst_asserted = true;
 	}
 
-
 	/* EJTAG before v2.5/2.6 does not support EJTAGBOOT or NORMALBOOT */
-	if (ejtag_info->ejtag_version != EJTAG_VERSION_20) {
-		if (target->reset_halt) {
-			/* use hardware to catch reset */
-			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_EJTAGBOOT);
-		} else
-			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_NORMALBOOT);
-	}
+	if (target->reset_halt) {
+		/* use hardware to catch reset */
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_EJTAGBOOT);
+	} else
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_NORMALBOOT);
 
 	if (jtag_reset_config & RESET_HAS_SRST) {
 		/* here we should issue a srst only, but we may have to assert trst as well */
@@ -338,23 +327,11 @@ static int mips_xburst1_assert_reset(struct target *target)
 		else if (!srst_asserted)
 			jtag_add_reset(0, 1);
 	} else {
-		if (mips_xburst1->is_pic32mx) {
-			LOG_DEBUG("Using MTAP reset to reset processor...");
-
-			/* use microchip specific MTAP reset */
-			mips_ejtag_set_instr(ejtag_info, MTAP_SW_MTAP);
-			mips_ejtag_set_instr(ejtag_info, MTAP_COMMAND);
-
-			mips_ejtag_drscan_8_out(ejtag_info, MCHP_ASERT_RST);
-			mips_ejtag_drscan_8_out(ejtag_info, MCHP_DE_ASSERT_RST);
-			mips_ejtag_set_instr(ejtag_info, MTAP_SW_ETAP);
-		} else {
-			/* use ejtag reset - not supported by all cores */
-			uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl | EJTAG_CTRL_PRRST | EJTAG_CTRL_PERRST;
-			LOG_DEBUG("Using EJTAG reset (PRRST) to reset processor...");
-			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-			mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
-		}
+		/* use ejtag reset - not supported by all cores */
+		uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl | EJTAG_CTRL_PRRST | EJTAG_CTRL_PERRST;
+		LOG_DEBUG("Using EJTAG reset (PRRST) to reset processor...");
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+		mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
 	}
 
 	target->state = TARGET_RESET;
@@ -628,12 +605,6 @@ static int mips_xburst1_set_breakpoint(struct target *target,
 			comparator_list[bp_num].bp_value |= 1;
 		else						/* make sure isa bit cleared */
 			comparator_list[bp_num].bp_value &= ~1;
-
-		/* EJTAG 2.0 uses 30bit IBA. First 2 bits are reserved.
-		 * Warning: there is no IB ASID registers in 2.0.
-		 * Do not set it! :) */
-		if (ejtag_info->ejtag_version == EJTAG_VERSION_20)
-			comparator_list[bp_num].bp_value &= 0xFFFFFFFC;
 
 		target_write_u32(target, comparator_list[bp_num].reg_address,
 				comparator_list[bp_num].bp_value);
@@ -1042,12 +1013,8 @@ static int mips_xburst1_read_memory(struct target *target, target_addr_t address
 	} else
 		t = buffer;
 
-	/* if noDMA off, use DMAACC mode for memory read */
-	int retval;
-	if (ejtag_info->impcode & EJTAG_IMP_NODMA)
-		retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t);
-	else
-		retval = mips32_dmaacc_read_mem(ejtag_info, address, size, count, t);
+	/* use DMAACC mode for memory read */
+	int retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t);
 
 	/* mips32_..._read_mem with size 4/2 returns uint32_t/uint16_t in host */
 	/* endianness, but byte array should represent target endianness       */
@@ -1118,12 +1085,8 @@ static int mips_xburst1_write_memory(struct target *target, target_addr_t addres
 		buffer = t;
 	}
 
-	/* if noDMA off, use DMAACC mode for memory write */
-	int retval;
-	if (ejtag_info->impcode & EJTAG_IMP_NODMA)
-		retval = mips32_pracc_write_mem(ejtag_info, address, size, count, buffer);
-	else
-		retval = mips32_dmaacc_write_mem(ejtag_info, address, size, count, buffer);
+	/* use DMAACC mode for memory write */
+	int retval = mips32_pracc_write_mem(ejtag_info, address, size, count, buffer);
 
 	if (t != NULL)
 		free(t);
@@ -1175,13 +1138,6 @@ static int mips_xburst1_examine(struct target *target)
 		if (retval != ERROR_OK) {
 			LOG_ERROR("idcode read failed");
 			return retval;
-		}
-		if (((ejtag_info->idcode >> 1) & 0x7FF) == 0x29) {
-			/* we are using a pic32mx so select ejtag port
-			 * as it is not selected by default */
-			mips_ejtag_set_instr(ejtag_info, MTAP_SW_ETAP);
-			LOG_DEBUG("PIC32 Detected - using EJTAG Interface");
-			mips_xburst1->is_pic32mx = true;
 		}
 	}
 
