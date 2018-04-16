@@ -1154,7 +1154,13 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		int write_t, uint32_t addr, int count, uint32_t *buf)
 {
 	uint32_t val;
-	uint32_t ejtag_ctrl;
+	uint32_t req_ctrl;
+	uint32_t *ack_ctrl = NULL;
+	ack_ctrl = malloc((count + 2) * sizeof(uint32_t));
+	if (ack_ctrl == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
 	int      retval;
 	uint32_t isa = ejtag_info->isa ? 1 : 0;
 	uint32_t handler_code[] = {
@@ -1257,47 +1263,50 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 			jtag_add_clocks(num_clocks);
 			mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
 		}
-	} else {
-		val = addr; /* Send the load start address */
-		if (write_t) { /* from xfer area to memory */
-			for (int i = 0; i < count + 2; i++) {
-        		        mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-        		        mips_ejtag_drscan_32_out(ejtag_info, val);
-				mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-				do {
-	   			        ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-        		        	mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-				} while ((ejtag_ctrl & EJTAG_CTRL_PRACC) == 0);
-				if (i != 0) {
-        		        	val = *buf;
-					buf++;
-				} else {
-					val = addr + (count - 1) * 4; /* Send the load end address */
-				}
-        		}
-		} else { /* from memory to xfer area*/
-			for (int i = 0; i < count + 2; i++) {
-                                mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-                                mips_ejtag_drscan_32(ejtag_info, &val);
-                                mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-                                do {
-                                        ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-                                        mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-                                } while ((ejtag_ctrl & EJTAG_CTRL_PRACC) == 0);
-                                if (i != 0) {
-                                        *buf = val;
-					buf++;
-                                } else {
-                                        val = addr + (count - 1) * 4; /* Send the load end address */
-                                }
-                        }
-		}	
-	}
 
-	retval = jtag_execute_queue();
-	if (retval != ERROR_OK) {
-		LOG_ERROR("fastdata load failed");
-		return retval;
+		retval = jtag_execute_queue();
+		if (retval != ERROR_OK) {
+                	LOG_ERROR("fastdata load failed");
+                	return retval;
+        	}
+	} else {
+		req_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+
+		val = addr; /* Send the load start address */
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+		mips_ejtag_add_drscan_32(ejtag_info, val, NULL);
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+		mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl);
+
+		val = addr + (count - 1) * 4; /* Send the load end address */
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+                mips_ejtag_add_drscan_32(ejtag_info, val, NULL);
+                mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+                mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 1);
+
+		/* from xfer area to memory */
+		/* from memory to xfer area*/
+		for (int i = 0; i < count; i++) {
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+			mips_ejtag_add_drscan_32(ejtag_info, *buf, buf);
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+			mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 2 + i);
+			buf++;
+		}
+
+		retval = jtag_execute_queue();              /* execute queued scans */
+		if (retval != ERROR_OK) {
+			LOG_ERROR("fastdata load execute queue failed");
+                        return retval;
+		}
+		
+		for (int i = 0; i < count + 2; i++) {
+			if ((ack_ctrl[i] & EJTAG_CTRL_PRACC) == 0) {
+				LOG_DEBUG("fastdata load verify failed");
+                        	return ERROR_FAIL;
+			}
+		}
+		free(ack_ctrl);
 	}
 
 	retval = mips32_pracc_read_ctrl_addr(ejtag_info);
