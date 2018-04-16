@@ -1156,11 +1156,6 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	uint32_t val;
 	uint32_t req_ctrl;
 	uint32_t *ack_ctrl = NULL;
-	ack_ctrl = malloc((count + 2) * sizeof(uint32_t));
-	if (ack_ctrl == NULL) {
-		LOG_ERROR("Out of memory");
-		return ERROR_FAIL;
-	}
 	int      retval;
 	uint32_t isa = ejtag_info->isa ? 1 : 0;
 	uint32_t handler_code[] = {
@@ -1270,6 +1265,11 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
                 	return retval;
         	}
 	} else {
+		ack_ctrl = malloc((count + 2) * sizeof(uint32_t));
+		if (ack_ctrl == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
 		req_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
 
 		val = addr; /* Send the load start address */
@@ -1288,7 +1288,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		/* from memory to xfer area*/
 		for (int i = 0; i < count; i++) {
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-			mips_ejtag_add_drscan_32(ejtag_info, *buf, buf);
+			mips_ejtag_add_drscan_32(ejtag_info, *buf, write_t ? NULL : buf);
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 			mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 2 + i);
 			buf++;
