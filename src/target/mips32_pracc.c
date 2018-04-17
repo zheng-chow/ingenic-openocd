@@ -1299,11 +1299,13 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 			LOG_ERROR("fastdata load execute queue failed");
                         return retval;
 		}
-		
-		for (int i = 0; i < count + 2; i++) {
-			if ((ack_ctrl[i] & EJTAG_CTRL_PRACC) == 0) {
-				LOG_DEBUG("fastdata load verify failed");
-                        	return ERROR_FAIL;
+
+		if (debug_level >= LOG_LVL_DEBUG) {	
+			for (int i = 0; i < count + 2; i++) {
+				if ((ack_ctrl[i] & EJTAG_CTRL_PRACC) == 0) {
+					LOG_DEBUG("fastdata load verify failed");
+                	        	return ERROR_FAIL;
+				}
 			}
 		}
 		free(ack_ctrl);
