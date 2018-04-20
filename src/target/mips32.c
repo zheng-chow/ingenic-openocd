@@ -268,7 +268,6 @@ int mips32_save_context(struct target *target)
 {
 	unsigned int i;
 	int retval;
-	uint32_t config1;
 
 	/* get pointers to arch-specific information */
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -291,111 +290,34 @@ int mips32_save_context(struct target *target)
 		}
 	}
 
-	/* Read Config1 registers */
-	retval = mips32_cp0_read(ejtag_info, &config1, 16, 1);
-	if (retval != ERROR_OK) {
-		LOG_DEBUG("reading config3 register failed");
-		return retval;
-	}
-
-	/* Retrive if Float Point CoProcessor Implemented */
-	mips32->fp_imp = (config1 & MIPS32_CONFIG1_FP_MASK);
-
 	/* FP Coprocessor available read FP registers */
 	if (mips32->fp_imp == FP_IMP) {
-		uint32_t config3;
-		uint32_t mvpconf1;
 		uint32_t status;
-		uint32_t tmp_status;
 
-		/* Read Config1 registers */
-		retval = mips32_cp0_read(ejtag_info, &config1, 16, 1);
+		/* Read Status register, save it and modify to enable CP0 */
+		retval = mips32_cp0_read(ejtag_info, &status, 12, 0);
 		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
+			LOG_DEBUG("reading status register failed");
 			return retval;
 		}
 
-		/* Read Config3 registers */
-		retval = mips32_cp0_read(ejtag_info, &config3, 16, 3);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
-			return retval;
-		}
-
-		/* Read mvpconf1 registers */
-		retval = mips32_cp0_read(ejtag_info, &mvpconf1, 0, 3);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
-			return retval;
-		}
-
-		/* check if VPE has access to FPU */
-		if ((config1 & 0x00000001) ) {
-
-			/* Check if multi-thread core with single thread FPU */
-			if ((((config3 & 0x00000004) >> 2) == 1) && ((mvpconf1 & 0x00000001) == 1)) {
-
-				/* Read Status register, save it and modify to enable CP0 */
-				retval = mips32_cp0_read(ejtag_info, &status, 12, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("reading status register failed");
-					return retval;
-				}
-
-				/* Check if Access to COP1 enabled */
-				if (((status & 0x20000000) >> 29) == 0) {
-					if ((retval = mips32_cp0_write(ejtag_info, (status | STATUS_CU1_MASK), 12, 0)) != ERROR_OK) {
-						LOG_DEBUG("writing status register failed");
-						return retval;
-					}
-
-					/* Verify CP1 Enabled */
-					retval = mips32_cp0_read(ejtag_info, &tmp_status, 12, 0);
-					if (retval != ERROR_OK) {
-						LOG_DEBUG("writing status register failed");
-						return retval;
-					}
-
-					if (((tmp_status & 0x20000000) >> 29)!= 1) {
-						LOG_USER ("1 Access to FPU not available - tmp_status: 0x%x, status: 0x%x", tmp_status, status);
-						return retval;
-					}
-				}
-
-				/* read core registers */
-				retval = mips32_pracc_read_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_F0]));
-				if (retval != ERROR_OK)
-					LOG_INFO("mips32->read_core_reg failed");
-
-				/* restore previous setting */
-				if ((mips32_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
-					LOG_DEBUG("writing status register failed");
-			} else {
-				/* Read Status register, save it and modify to enable CP0 */
-				retval = mips32_cp0_read(ejtag_info, &status, 12, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("reading status register failed");
-					return retval;
-				}
-
-				/* Check if Access to COP1 enabled */
-				if (((status & 0x20000000) >> 29) == 0) {
-					if ((retval = mips32_cp0_write(ejtag_info, (status | STATUS_CU1_MASK), 12, 0)) != ERROR_OK) {
-						LOG_DEBUG("writing status register failed");
-							return retval;
-					}
-				}
-
-				/* read core registers */
-				retval = mips32_pracc_read_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_F0]));
-				if (retval != ERROR_OK)
-					LOG_INFO("mips32->read_fpu_reg failed: status: 0x%x, tmp_status: 0x%x", status, tmp_status);
-				
-				/* restore previous setting */
-				if ((mips32_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
+		/* Check if Access to COP1 enabled */
+		if (((status & 0x20000000) >> 29) == 0) {
+			if ((retval = mips32_cp0_write(ejtag_info, (status | MIPS32_STATUS_CU1_MASK), 12, 0)) != ERROR_OK) {
 				LOG_DEBUG("writing status register failed");
+					return retval;
 			}
 		}
+
+		/* read core registers */
+		retval = mips32_pracc_read_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_F0]));
+		if (retval != ERROR_OK)
+			LOG_INFO("mips32->read_fpu_reg failed");
+		
+		/* restore previous setting */
+		if ((mips32_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
+			LOG_DEBUG("writing status register failed");
+		
 		for (i = MIPS32_F0; i < MIPS32_NUM_REGS; i++) {
 			if (mips32->core_cache->reg_list[i].valid) {
 				retval = mips32->read_core_reg(target, i);
@@ -415,7 +337,6 @@ int mips32_restore_context(struct target *target)
 {
 	unsigned int i;
 	int retval;
-	uint32_t config1;
 
 	/* get pointers to arch-specific information */
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -429,94 +350,28 @@ int mips32_restore_context(struct target *target)
 	/* If FPU then Update registers */
 	/* FP Coprocessor available read FP registers */
 	if (mips32->fp_imp == FP_IMP) {
-		uint32_t config3;
-		uint32_t mvpconf1;
 		uint32_t status;
-		uint32_t tmp_status;
 
-		/* Read Config1 registers */
-		retval = mips32_cp0_read(ejtag_info, &config1, 16, 1);
+		/* Read Status register, save it and modify to enable CP0 */
+		retval = mips32_cp0_read(ejtag_info, &status, 12, 0);
 		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config1 register failed");
+			LOG_DEBUG("reading status register failed");
 			return retval;
 		}
 
-		/* Read Config3 registers */
-		retval = mips32_cp0_read(ejtag_info, &config3, 16, 3);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
+		if ((retval = mips32_cp0_write(ejtag_info, (status | MIPS32_STATUS_CU1_MASK), 12, 0)) != ERROR_OK) {
+			LOG_DEBUG("writing status register failed");
 			return retval;
 		}
 
-		/* Read mvpconf1 registers */
-		retval = mips32_cp0_read(ejtag_info, &mvpconf1, 0, 3);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("reading config3 register failed");
-			return retval;
-		}
+		/* read core registers */
+		retval = mips32_pracc_write_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_F0]));
+		if (retval != ERROR_OK)
+			LOG_INFO("mips32->read_fpu_reg failed");
 
-		/* check if FPU configured and Multi-thread core*/
-		if ((config1 & 0x00000001) == 1) {
-
-			/* Check if multi-thread core with single thread FPU */
-			if ((((config3 & 0x00000004) >> 2) == 1) && ((mvpconf1 & 0x00000001) == 1)) {
-
-				/* Read Status register, save it and modify to enable CP0 */
-				retval = mips32_cp0_read(ejtag_info, &status, 12, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("reading status register failed");
-					return retval;
-				}
-
-				if ((retval = mips32_cp0_write(ejtag_info, (status | STATUS_CU1_MASK), 12, 0)) != ERROR_OK) {
-					LOG_DEBUG("writing status register failed");
-					return retval;
-				}
-
-				/* Verify CP1 Enabled */
-				retval = mips32_cp0_read(ejtag_info, &tmp_status, 12, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("writing status register failed");
-					return retval;
-				}
-
-				if (((tmp_status & 0x20000000) >> 29)!= 1) {
-					LOG_USER ("1 Access to FPU not available - tmp_status: 0x%x, status: 0x%x", tmp_status, status);
-					return retval;
-				}
-
-				/* read core registers */
-				retval = mips32_pracc_write_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_F0]));
-				if (retval != ERROR_OK)
-					LOG_INFO("mips32->read_core_reg failed");
-
-				/* restore previous setting */
-				if ((mips32_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
-					LOG_DEBUG("writing status register failed");
-			} else {
-				/* Read Status register, save it and modify to enable CP0 */
-				retval = mips32_cp0_read(ejtag_info, &status, 12, 0);
-				if (retval != ERROR_OK) {
-					LOG_DEBUG("reading status register failed");
-					return retval;
-				}
-
-				if ((retval = mips32_cp0_write(ejtag_info, (status | STATUS_CU1_MASK), 12, 0)) != ERROR_OK) {
-					LOG_DEBUG("writing status register failed");
-					return retval;
-				}
-
-
-				/* read core registers */
-				retval = mips32_pracc_write_fpu_regs(ejtag_info, (uint32_t *)(&mips32->core_regs[MIPS32_F0]));
-				if (retval != ERROR_OK)
-					LOG_INFO("mips32->read_core_reg failed");
-
-				/* restore previous setting */
-				if ((mips32_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
-					LOG_DEBUG("writing status register failed");
-			}
-		}
+		/* restore previous setting */
+		if ((mips32_cp0_write(ejtag_info, status, 12, 0)) != ERROR_OK)
+			LOG_DEBUG("writing status register failed");
 	}
 
 	/* write core regs */
@@ -970,6 +825,10 @@ int mips32_read_config_regs(struct target *target)
 	if (mips32->isa_imp == MIPS32_ONLY)	/* initial default value */
 		LOG_USER("MIPS32 only implemented");
 
+	/* if Float Point CoProcessor Implemented */
+	if (ejtag_info->config[1] & MIPS32_CONFIG1_FP_MASK){
+		mips32->fp_imp = FP_IMP;
+	}
 	/* Read PRID registers and determine CPU type from PRID.*/
 	retval = mips32_cp0_read(ejtag_info, &prid, 15, 0);
 	if (retval != ERROR_OK) {

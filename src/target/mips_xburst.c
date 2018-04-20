@@ -1115,6 +1115,7 @@ static int mips_xburst_init_arch_info(struct target *target,
 	/* initialize mips4k specific info */
 	mips32_init_arch_info(target, mips32, tap);
 	mips32->arch_info = mips_xburst;
+	mips32->fp_imp = FP_IMP;
 
 	return ERROR_OK;
 }
