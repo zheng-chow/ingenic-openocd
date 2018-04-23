@@ -1194,7 +1194,6 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 
 int mips32_pracc_write_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 {
-
 	struct pracc_queue_info ctx = {.ejtag_info = ejtag_info};
 
 	pracc_queue_init(&ctx);
@@ -1217,7 +1216,7 @@ int mips32_pracc_write_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 			pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[i-MIPS32_F0]))));
 		}
 
-		pracc_add(&ctx, 0, MIPS32_ISA_MTC1(8, (i)));
+		pracc_add(&ctx, 0, MIPS32_ISA_MTC1(8, (i - MIPS32_F0)));
 
 	}
 
