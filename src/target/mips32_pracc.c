@@ -1110,8 +1110,8 @@ int mips32_pracc_read_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	if (ctx.retval != ERROR_OK)
 		goto exit;
 
-	if (ctx.isa == MIPS32_ISA_MMIPS32 || ctx.isa == MIPS32_ISA_MIPS16E){
-		LOG_ERROR("do not support MMIPS32 or MIPS16E");
+	if (ctx.isa != MIPS32_ISA_MIPS32){
+		LOG_DEBUG("mips32_pracc_read_fpu_regs just support MIPS32_ISA_MIPS32");
 		goto exit;
 	}
 
@@ -1140,9 +1140,6 @@ int mips32_pracc_read_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	pracc_add(&ctx, 0, MIPS32_ISA_B(NEG16(ctx.code_count + 1)));	/* jump to start */
  
 	pracc_add(&ctx, 0, MIPS32_ISA_MTC0(15, 31, 0));					/* load $15 in DeSave */
-
-	if (ejtag_info->mode == 0)
-		ctx.store_count++;	/* Needed by legacy code, due to offset from reg0 */
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, regs, 1);
 exit:
@@ -1200,8 +1197,8 @@ int mips32_pracc_write_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	if (ctx.retval != ERROR_OK)
 		goto exit;
 
-	if (ctx.isa == MIPS32_ISA_MMIPS32 || ctx.isa == MIPS32_ISA_MIPS16E){
-		LOG_ERROR("do not support MMIPS");
+	if (ctx.isa != MIPS32_ISA_MIPS32){
+		LOG_DEBUG("mips32_pracc_write_fpu_regs just support MIPS32_ISA_MIPS32");
 		goto exit;
 	}
 
