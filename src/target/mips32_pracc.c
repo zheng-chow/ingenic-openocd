@@ -157,7 +157,7 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 {
 	int retval;
 	uint32_t data;
-	uint32_t jt_code = MIPS32_J(ejtag_info->isa, (0x0FFFFFFF & MIPS32_PRACC_TEXT) >> 2);
+	uint32_t jt_code = MIPS32_J(ejtag_info->isa, MIPS32_PRACC_TEXT);
 	pracc_swap16_array(ejtag_info, &jt_code, 1);
 	/* do 3 0/nops to clean pipeline before a jump to pracc text, NOP in delay slot. It applies to everyone ??????*/
 	for (int i = 0; i < 128; i++) {
