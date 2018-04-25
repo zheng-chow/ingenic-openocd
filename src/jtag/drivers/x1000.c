@@ -127,8 +127,8 @@ int jdi_write_out(int tck, int tms, int tdi)
 
 uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag)
 {
-//	0000  0000  0000  0000	0000  0000  0000  0000
-//	状态	  类型  FTMS	        次数	        数------据
+//	0000	0000	0000	0000	0000	0000	0000	0000
+//  状态		类型		FTMS			次数				数--------据
 	unsigned int mcu_status = 0;
 	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 12) | data | 0x20000000;
 	do

@@ -22,16 +22,16 @@ int  main()
 	while(1)
 	{
 		dout = share_data;
-		if(dout & 0x40000000)						//write only
+		if(dout & 0x40000000)									//write only
 		{
 			share_data = 0;
 			(*(volatile unsigned int *)0x10010340) = dout;		//设置TMS TDI,输出CLK0
 			(*(volatile unsigned int *)0x10010340) = dout | 1;	//设置TMS TDI,输出CLK1
 		}
-		if(dout & 0x20000000)						//write for <= 8
+		if(dout & 0x20000000)									//write for <= 8
 		{
-//			0000  0000  0000  0000  0000  0000  0000  0000
-//			状态	  类型  FTMS			次数			数------据
+//			0000	0000	0000	0000	0000	0000	0000	0000
+//			状态		类型		FTMS			次数				数--------据
 			buffer = 0x00000000;
 			scan_size = (dout & 0x0000f000) >> 12;
 			type = (dout & 0x00f00000);
@@ -43,9 +43,9 @@ int  main()
 				status = (status & 0xFFFFFFF8) | (((bit_cnt == scan_size-1) && tms_flag) ? (1 << 1) : 0);//TMS
 				int bcval = 1 << bit_cnt;
 
-				if ((type != 0x00100000) && (dout & bcval))//SCAN_IN=1
-					status = status | (1 << 2);//TDI
-				if (type != 0x00200000) {//SCAN_OUT=2
+				if ((type != 0x00100000) && (dout & bcval))						//SCAN_IN=1
+					status = status | (1 << 2);									//TDI
+				if (type != 0x00200000) {										//SCAN_OUT=2
 					(*(volatile unsigned int *)0x10010340) = status;			//设置TMS TDI,输出CLK0
 //					din = (*(volatile unsigned int *)0x10010300) & 0x00000008;	//read TDO
 					if((*(volatile unsigned int *)0x10010300) & 0x00000008)

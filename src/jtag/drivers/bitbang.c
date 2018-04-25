@@ -32,8 +32,6 @@
 
 #include <sys/mman.h>
 
-#define SHARE_DATA	(*(volatile unsigned int *)(tcsm2_base+0x0ff0/4))
-
 extern volatile uint32_t *pio_base;
 extern uint32_t *tcsm2_base;
 extern int port_status;
@@ -43,7 +41,6 @@ extern struct jtag_interface *jtag_interface;
 
 extern int jdi_write(int tck, int tms, int tdi);
 extern int jdi_write_out(int tck, int tms, int tdi);
-
 
 extern uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag);
 
