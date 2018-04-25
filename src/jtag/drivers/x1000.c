@@ -24,7 +24,10 @@
 
 #include <sys/mman.h>
 
-#define GPIO_BASE	(0x10010000) /* GPIO controller */
+#define SHARE_DATA	(*(volatile unsigned int *)(tcsm2_base+0x0ff0/4))
+
+#define CLKGR		(*(cgu_base+0x020/4))
+#define MCUCSR		(*(mcu_base+0x030/4))
 
 #define PBPIN		(*(pio_base+0x100/4))
 #define PBINT		(*(pio_base+0x110/4))
@@ -65,7 +68,11 @@
 #define PZGID2LD	(*(pio_base+0x7f0/4))
 
 static int dev_mem_fd;
-static volatile uint32_t *pio_base;
+volatile uint32_t *pio_base;
+static volatile uint32_t *cgu_base;
+static volatile uint32_t *mcu_base;
+static uint32_t *tcsm_base;
+uint32_t *tcsm2_base;
 
 static bb_value_t x1000_read(void);
 static int x1000_write(int tck, int tms, int tdi);
@@ -86,8 +93,81 @@ static int led_gpio = -1;
 /* Transition delay coefficients */
 static int speed_coeff = 113714;
 static int speed_offset = 28;
-static int port_status;
+int port_status;
 static unsigned int jtag_delay;
+
+int jdi_write(int tck, int tms, int tdi)
+{
+	port_status = (port_status & ~(1<<0 | 1<<1 | 1<<2)) |
+					tck<<0 | tms<<1 | tdi<<2;
+
+	PDPAT0 = port_status;
+
+	for (unsigned int i = 0; i < jtag_delay; i++)
+		asm volatile ("");
+
+	return ERROR_OK;
+}
+
+int jdi_write_out(int tck, int tms, int tdi)
+{
+	unsigned int mcu_status = 0;
+	port_status = (port_status & ~(1<<0 | 1<<1 | 1<<2)) |
+					tck<<0 | tms<<1 | tdi<<2;
+
+	SHARE_DATA = port_status | 0x40000000;
+	do
+	{
+		mcu_status = SHARE_DATA;
+	}
+	while(mcu_status & 0x40000000);
+
+	return ERROR_OK;
+}
+
+uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag)
+{
+//	0000  0000  0000  0000	0000  0000  0000  0000
+//	状态	  类型  FTMS	        次数	        数------据
+	unsigned int mcu_status = 0;
+	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 12) | data | 0x20000000;
+	do
+	{
+		mcu_status = SHARE_DATA;
+	}
+	while(mcu_status & 0x20000000);
+
+	return (uint8_t)(mcu_status & 0x000000ff);
+}
+
+static int firmware[] ={
+	#include "firmware.hex"
+};
+
+static void reset_mcu(void)
+{
+	MCUCSR = 1;
+}
+static void boot_up_mcu(void)
+{
+	MCUCSR = 0;
+}
+static void load_mcu_fireware(void)
+{
+	memcpy(tcsm_base, firmware, sizeof(firmware));
+}
+
+	/* entry */
+void init_mcu(void)
+{
+	CLKGR = 0;
+
+	load_mcu_fireware();
+	reset_mcu();
+	boot_up_mcu();
+
+	printf("MUC init ok!\n");
+}
 
 static bb_value_t x1000_read(void)
 {
@@ -347,13 +427,49 @@ static int x1000_init(void)
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	pio_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,	//mod
-				MAP_SHARED, dev_mem_fd, 0x10010000);		//mod
+	pio_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, 0x10010000);/* GPIO controller */
 
-	if (pio_base == MAP_FAILED) {						//mod
+	if (pio_base == MAP_FAILED) {
 		perror("mmap");
 		close(dev_mem_fd);
-		return ERROR_JTAG_INIT_FAILED;					//mod
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	cgu_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, 0x10000000);/* CGU controller */
+
+	if (pio_base == MAP_FAILED) {
+		perror("mmap");
+		close(dev_mem_fd);
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	mcu_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, 0x13421000);/* DMA controller */
+
+	if (mcu_base == MAP_FAILED) {
+		perror("mmap");
+		close(dev_mem_fd);
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	tcsm_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, 0x13422000);/* TCSM Bank0 */
+
+	if (tcsm_base == MAP_FAILED) {
+		perror("mmap");
+		close(dev_mem_fd);
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	tcsm2_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, 0x13423000);/* TCSM Bank1 */
+
+	if (tcsm2_base == MAP_FAILED) {
+		perror("mmap");
+		close(dev_mem_fd);
+		return ERROR_JTAG_INIT_FAILED;
 	}
 
 	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
@@ -391,6 +507,8 @@ static int x1000_init(void)
 	LOG_INFO("GPIO JTAG bitbang driver");
 
 	printf("port_status = %08X\n",port_status);
+
+	init_mcu();
 
 	return ERROR_OK;
 }
