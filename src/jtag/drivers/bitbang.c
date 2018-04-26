@@ -43,6 +43,7 @@ extern int jdi_write(int tck, int tms, int tdi);
 extern int jdi_write_out(int tck, int tms, int tdi);
 
 extern uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag);
+extern uint32_t jdi_write_32(enum scan_type type, uint32_t data, unsigned scan_size, uint8_t tms_flag);
 
 /**
  * Function bitbang_stableclocks
@@ -81,7 +82,7 @@ struct bitbang_interface *bitbang_interface;
 /* The bitbang driver leaves the TCK 0 when in idle */
 static void bitbang_end_state(tap_state_t state)
 {
-	assert(tap_is_state_stable(state));
+	tap_is_state_stable(state);
 	tap_set_end_state(state);
 }
 
@@ -201,6 +202,7 @@ static int bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer,
 
 	unsigned turn_num;
 	unsigned turn_cnt;
+	unsigned temp1,temp2;
 
 	if (!((!ir_scan &&
 			(tap_get_state() == TAP_DRSHIFT)) ||
@@ -214,15 +216,22 @@ static int bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer,
 		bitbang_end_state(saved_end_state);
 	}
 
-	turn_num = (scan_size-1)/8;
-	for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
-		if(scan_size <= 8) {
-			buffer[turn_cnt] = jdi_write_8(type, buffer[turn_cnt], scan_size, 1);
-		} else {
-			buffer[turn_cnt] = jdi_write_8(type, buffer[turn_cnt], 8, 0);
-			scan_size -= 8;
+	if(scan_size <= 8)
+		buffer[0] = jdi_write_8(type, buffer[0], scan_size, 1);//irscan
+	else {
+		turn_num = (scan_size-1)/32;
+		for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
+			if(scan_size <= 32) {
+				memcpy(&temp1,&buffer[turn_cnt*4],4);
+				temp2 = jdi_write_32(type, temp1, scan_size, 1);
+				memcpy(&buffer[turn_cnt*4],&temp2,4);
+			} else {
+				memcpy(&temp1,&buffer[turn_cnt*4],4);
+				temp2 = jdi_write_32(type, temp1, 32, 0);
+				memcpy(&buffer[turn_cnt*4],&temp2,4);
+				scan_size -= 32;
+			}
 		}
-
 	}
 
 	if (tap_get_state() != tap_get_end_state()) {

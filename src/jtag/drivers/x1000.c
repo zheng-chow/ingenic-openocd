@@ -25,6 +25,7 @@
 #include <sys/mman.h>
 
 #define SHARE_DATA	(*(volatile unsigned int *)(tcsm2_base+0x0ff0/4))
+#define SHARE_DATA2	(*(volatile unsigned int *)(tcsm2_base+0x0ff4/4))
 
 #define CLKGR		(*(cgu_base+0x020/4))
 #define MCUCSR		(*(mcu_base+0x030/4))
@@ -127,10 +128,11 @@ int jdi_write_out(int tck, int tms, int tdi)
 
 uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag)
 {
-//	0000	0000	0000	0000	0000	0000	0000	0000
-//  状态		类型		FTMS			次数				数--------据
+//  0000  0000  0000  0000  0000  0000  0000  0000
+//  状态        类型	  FTMS  次------数	数------据
 	unsigned int mcu_status = 0;
-	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 12) | data | 0x20000000;
+
+	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | data | 0x20000000;
 	do
 	{
 		mcu_status = SHARE_DATA;
@@ -138,6 +140,24 @@ uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8
 	while(mcu_status & 0x20000000);
 
 	return (uint8_t)(mcu_status & 0x000000ff);
+}
+
+uint32_t jdi_write_32(enum scan_type type, uint32_t data, unsigned scan_size, uint8_t tms_flag)
+{
+//  0000  0000  0000  0000  0000  0000  0000  0000
+//  状态        类型	  FTMS  次------数	数------据
+	unsigned int mcu_status = 0;
+	unsigned int mcu_status2 = 0;
+	SHARE_DATA2 = data;
+	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | 0x10000000;
+	do
+	{
+		mcu_status = SHARE_DATA;
+		mcu_status2 = SHARE_DATA2;
+	}
+	while(mcu_status & 0x10000000);
+
+	return  mcu_status2;
 }
 
 static int firmware[] ={
