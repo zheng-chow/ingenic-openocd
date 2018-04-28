@@ -116,12 +116,22 @@ int jdi_write_out(int tck, int tms, int tdi)
 	port_status = (port_status & ~(1<<0 | 1<<1 | 1<<2)) |
 					tck<<0 | tms<<1 | tdi<<2;
 
-	SHARE_DATA = port_status | 0x40000000;
+	SHARE_DATA = port_status | 0x10000000;
 	do
 	{
 		mcu_status = SHARE_DATA;
 	}
-	while(mcu_status & 0x40000000);
+	while(mcu_status & 0x10000000);
+
+	return ERROR_OK;
+}
+
+int jdi_state_move(int skip, uint8_t tms_scan, int tms_count)
+{
+//  0000  0000  0000  0000  0000  0000  0000  0000
+//  状态              skip   tms_scan    tms_count
+	SHARE_DATA = (skip << 16) | (tms_scan << 8) | tms_count | 0x80000000;
+	while(SHARE_DATA & 0x80000000);
 
 	return ERROR_OK;
 }
@@ -129,15 +139,15 @@ int jdi_write_out(int tck, int tms, int tdi)
 uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag)
 {
 //  0000  0000  0000  0000  0000  0000  0000  0000
-//  状态        类型	  FTMS  次------数	数------据
+//  状态        类型   FTMS  次------数  数------据
 	unsigned int mcu_status = 0;
 
-	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | data | 0x20000000;
+	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | data | 0x40000000;
 	do
 	{
 		mcu_status = SHARE_DATA;
 	}
-	while(mcu_status & 0x20000000);
+	while(mcu_status & 0x40000000);
 
 	return (uint8_t)(mcu_status & 0x000000ff);
 }
@@ -145,19 +155,12 @@ uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8
 uint32_t jdi_write_32(enum scan_type type, uint32_t data, unsigned scan_size, uint8_t tms_flag)
 {
 //  0000  0000  0000  0000  0000  0000  0000  0000
-//  状态        类型	  FTMS  次------数	数------据
-	unsigned int mcu_status = 0;
-	unsigned int mcu_status2 = 0;
+//  状态        类型   FTMS  次------数  数------据
 	SHARE_DATA2 = data;
-	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | 0x10000000;
-	do
-	{
-		mcu_status = SHARE_DATA;
-		mcu_status2 = SHARE_DATA2;
-	}
-	while(mcu_status & 0x10000000);
+	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | 0x20000000;
+	while(SHARE_DATA & 0x20000000);
 
-	return  mcu_status2;
+	return  SHARE_DATA2;
 }
 
 static int firmware[] ={
@@ -434,14 +437,14 @@ static int x1000_init(void)
 {
 	bitbang_interface = &x1000_bitbang;
 
-	if (!is_gpio_valid(tdo_gpio) || !is_gpio_valid(tdi_gpio) ||		//mod
-		!is_gpio_valid(tck_gpio) || !is_gpio_valid(tms_gpio) ||		//mod
-		(trst_gpio != -1 && !is_gpio_valid(trst_gpio)) ||		//mod
+	if (!is_gpio_valid(tdo_gpio) || !is_gpio_valid(tdi_gpio) ||
+		!is_gpio_valid(tck_gpio) || !is_gpio_valid(tms_gpio) ||
+		(trst_gpio != -1 && !is_gpio_valid(trst_gpio)) ||
 		(srst_gpio != -1 && !is_gpio_valid(srst_gpio)) ||
-		(led_gpio != -1 && !is_gpio_valid(led_gpio)))			//mod
+		(led_gpio != -1 && !is_gpio_valid(led_gpio)))
 		return ERROR_JTAG_INIT_FAILED;
 
-	dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);				//mod
+	dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
 	if (dev_mem_fd < 0) {
 		perror("open");
 		return ERROR_JTAG_INIT_FAILED;
@@ -492,26 +495,26 @@ static int x1000_init(void)
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
-	PZMSKS = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
+	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
+	PZMSKS = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
 	PZPAT1S = 1<<tdo_gpio;
 	PZPAT1C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
 	PZPAT0S = 1<<tms_gpio;
 	PZPAT0C = 1<<tdi_gpio | 1<<tck_gpio;
 	PZGID2LD = 0x3;
 
-	if (trst_gpio != -1) {							//mod
-		PZINTC = 1 << trst_gpio;					//mod
-		PZMSKS = 1 << trst_gpio;					//mod
-		PZPAT1C = 1 << trst_gpio;					//mod
-		PZPAT0S = 1 << trst_gpio;					//mod
+	if (trst_gpio != -1) {
+		PZINTC = 1 << trst_gpio;
+		PZMSKS = 1 << trst_gpio;
+		PZPAT1C = 1 << trst_gpio;
+		PZPAT0S = 1 << trst_gpio;
 		PZGID2LD = 0x3;
 	}
-	if (srst_gpio != -1) {							//mod
-		PZINTC = 1 << srst_gpio;					//mod
-		PZMSKS = 1 << srst_gpio;					//mod
-		PZPAT1C = 1 << srst_gpio;					//mod
-		PZPAT0S = 1 << srst_gpio;					//mod
+	if (srst_gpio != -1) {
+		PZINTC = 1 << srst_gpio;
+		PZMSKS = 1 << srst_gpio;
+		PZPAT1C = 1 << srst_gpio;
+		PZPAT0S = 1 << srst_gpio;
 		PZGID2LD = 0x3;
 	}
 	if (led_gpio != -1) {

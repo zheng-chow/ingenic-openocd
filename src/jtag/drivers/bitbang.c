@@ -41,6 +41,7 @@ extern struct jtag_interface *jtag_interface;
 
 extern int jdi_write(int tck, int tms, int tdi);
 extern int jdi_write_out(int tck, int tms, int tdi);
+extern int jdi_state_move(int skip, uint8_t tms_scan, int tms_count);
 
 extern uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag);
 extern uint32_t jdi_write_32(enum scan_type type, uint32_t data, unsigned scan_size, uint8_t tms_flag);
@@ -53,7 +54,7 @@ extern uint32_t jdi_write_32(enum scan_type type, uint32_t data, unsigned scan_s
  * this function checks the current stable state to decide on the value of TMS
  * to use.
  */
-static int bitbang_stableclocks(int num_cycles);
+//static int bitbang_stableclocks(int num_cycles);
 
 static void bitbang_swd_write_reg(uint8_t cmd, uint32_t value, uint32_t ap_delay_clk);
 
@@ -88,20 +89,15 @@ static void bitbang_end_state(tap_state_t state)
 
 static int bitbang_state_move(int skip)
 {
-	int i = 0, tms = 0;
 	uint8_t tms_scan = tap_get_tms_path(tap_get_state(), tap_get_end_state());
 	int tms_count = tap_get_tms_path_len(tap_get_state(), tap_get_end_state());
 
-	for (i = skip; i < tms_count; i++) {
-		tms = (tms_scan >> i) & 1;
-		jdi_write_out(0, tms, 0);
-	}
-	jdi_write(CLOCK_IDLE(), tms, 0);
+	jdi_state_move(skip, tms_scan, tms_count);
 
 	tap_set_state(tap_get_end_state());
 	return ERROR_OK;
 }
-
+#if 0
 /**
  * Clock a bunch of TMS (or SWDIO) transitions, to change the JTAG
  * (or SWD) state machine.
@@ -194,7 +190,7 @@ static int bitbang_stableclocks(int num_cycles)
 
 	return ERROR_OK;
 }
-
+#endif
 static int bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer,
 		unsigned scan_size)
 {
@@ -224,11 +220,13 @@ static int bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer,
 			if(scan_size <= 32) {
 				memcpy(&temp1,&buffer[turn_cnt*4],4);
 				temp2 = jdi_write_32(type, temp1, scan_size, 1);
-				memcpy(&buffer[turn_cnt*4],&temp2,4);
+				if (type != SCAN_OUT)
+					memcpy(&buffer[turn_cnt*4],&temp2,4);
 			} else {
 				memcpy(&temp1,&buffer[turn_cnt*4],4);
 				temp2 = jdi_write_32(type, temp1, 32, 0);
-				memcpy(&buffer[turn_cnt*4],&temp2,4);
+				if (type != SCAN_OUT)
+					memcpy(&buffer[turn_cnt*4],&temp2,4);
 				scan_size -= 32;
 			}
 		}
@@ -274,28 +272,28 @@ int bitbang_execute_queue(void)
 							cmd->cmd.reset->srst) != ERROR_OK)
 					return ERROR_FAIL;
 				break;
-			case JTAG_RUNTEST:
-				bitbang_end_state(cmd->cmd.runtest->end_state);
-				if (bitbang_runtest(cmd->cmd.runtest->num_cycles) != ERROR_OK)
-					return ERROR_FAIL;
-				break;
+//			case JTAG_RUNTEST:
+//				bitbang_end_state(cmd->cmd.runtest->end_state);
+//				if (bitbang_runtest(cmd->cmd.runtest->num_cycles) != ERROR_OK)
+//					return ERROR_FAIL;
+//				break;
 
-			case JTAG_STABLECLOCKS:
+//			case JTAG_STABLECLOCKS:
 				/* this is only allowed while in a stable state.  A check for a stable
 				 * state was done in jtag_add_clocks()
 				 */
-				if (bitbang_stableclocks(cmd->cmd.stableclocks->num_cycles) != ERROR_OK)
-					return ERROR_FAIL;
-				break;
+//				if (bitbang_stableclocks(cmd->cmd.stableclocks->num_cycles) != ERROR_OK)
+//					return ERROR_FAIL;
+//				break;
 
 			case JTAG_TLR_RESET:
 				bitbang_end_state(cmd->cmd.statemove->end_state);
 				if (bitbang_state_move(0) != ERROR_OK)
 					return ERROR_FAIL;
 				break;
-			case JTAG_PATHMOVE:
-				bitbang_path_move(cmd->cmd.pathmove);
-				break;
+//			case JTAG_PATHMOVE:
+//				bitbang_path_move(cmd->cmd.pathmove);
+//				break;
 			case JTAG_SCAN:
 				bitbang_end_state(cmd->cmd.scan->end_state);
 				scan_size = jtag_build_buffer(cmd->cmd.scan, &buffer);
@@ -309,9 +307,9 @@ int bitbang_execute_queue(void)
 			case JTAG_SLEEP:
 				jtag_sleep(cmd->cmd.sleep->us);
 				break;
-			case JTAG_TMS:
-				retval = bitbang_execute_tms(cmd);
-				break;
+//			case JTAG_TMS:
+//				retval = bitbang_execute_tms(cmd);
+//				break;
 			default:
 				LOG_ERROR("BUG: unknown JTAG command type encountered");
 				exit(-1);
