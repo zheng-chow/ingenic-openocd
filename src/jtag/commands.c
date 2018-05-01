@@ -163,10 +163,10 @@ int jtag_build_buffer(const struct scan_command *cmd, uint8_t **buffer)
 	bit_count = cmd->fields[0].num_bits;
 	*buffer = calloc(1, DIV_ROUND_UP(bit_count, 8));
 
-		if (cmd->fields[0].out_value) {
-			buf_set_buf(cmd->fields[0].out_value, 0, *buffer,
-					0, cmd->fields[0].num_bits);
-		}
+	if (cmd->fields[0].out_value) {
+		buf_set_buf(cmd->fields[0].out_value, 0, *buffer,
+				0, cmd->fields[0].num_bits);
+	}
 
 	return bit_count;
 }
