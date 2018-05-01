@@ -123,8 +123,10 @@ int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data)
 void mips_ejtag_add_drscan_32(struct mips_ejtag *ejtag_info, uint32_t data_out, uint32_t *data_in)
 {
 	uint8_t scan_in[4];
-	mips_ejtag_drscan_32_queued(ejtag_info, data_out, scan_in);
-	if (data_in != NULL) {
+	if (data_in == NULL)
+		mips_ejtag_drscan_32_queued(ejtag_info, data_out, NULL);
+	else {
+		mips_ejtag_drscan_32_queued(ejtag_info, data_out, scan_in);
 		*data_in = buf_get_u32(scan_in, 0, 32);
 	}
 }

@@ -97,31 +97,12 @@ static int speed_offset = 28;
 int port_status;
 static unsigned int jtag_delay;
 
-int jdi_write(int tck, int tms, int tdi)
+int jdi_led(int on)
 {
-	port_status = (port_status & ~(1<<0 | 1<<1 | 1<<2)) |
-					tck<<0 | tms<<1 | tdi<<2;
-
-	PDPAT0 = port_status;
-
-	for (unsigned int i = 0; i < jtag_delay; i++)
-		asm volatile ("");
-
-	return ERROR_OK;
-}
-
-int jdi_write_out(int tck, int tms, int tdi)
-{
-	unsigned int mcu_status = 0;
-	port_status = (port_status & ~(1<<0 | 1<<1 | 1<<2)) |
-					tck<<0 | tms<<1 | tdi<<2;
-
-	SHARE_DATA = port_status | 0x10000000;
-	do
-	{
-		mcu_status = SHARE_DATA;
-	}
-	while(mcu_status & 0x10000000);
+	if (on)
+		PBPAT0S = 1<<led_gpio;
+	else
+		PBPAT0C = 1<<led_gpio;
 
 	return ERROR_OK;
 }
@@ -152,12 +133,12 @@ uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8
 	return (uint8_t)(mcu_status & 0x000000ff);
 }
 
-uint32_t jdi_write_32(enum scan_type type, uint32_t data, unsigned scan_size, uint8_t tms_flag)
+uint32_t jdi_write_32(enum scan_type type, uint32_t data, uint8_t tms_flag)
 {
 //  0000  0000  0000  0000  0000  0000  0000  0000
 //  状态        类型   FTMS  次------数  数------据
 	SHARE_DATA2 = data;
-	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | 0x20000000;
+	SHARE_DATA = (type << 20) | (tms_flag << 16) | 0x20000000;
 	while(SHARE_DATA & 0x20000000);
 
 	return  SHARE_DATA2;
@@ -189,7 +170,7 @@ void init_mcu(void)
 	reset_mcu();
 	boot_up_mcu();
 
-	printf("MUC init ok!\n");
+	printf("MCU init ok!\n");
 }
 
 static bb_value_t x1000_read(void)
@@ -538,18 +519,18 @@ static int x1000_init(void)
 
 static int x1000_quit(void)
 {
-	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
-	PZMSKS = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;		//mod
+	PZINTC = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
+	PZMSKS = 1<<tdo_gpio | 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
 	PZPAT1S = 1<<tdo_gpio;
-	PZPAT1C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;			//mod
-	PZPAT0C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;			//mod
+	PZPAT1C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
+	PZPAT0C = 1<<tdi_gpio | 1<<tck_gpio | 1<<tms_gpio;
 	PZGID2LD = 0x3;
 
-	if (trst_gpio != -1) {							//mod
-		PZINTC = 1 << trst_gpio;					//mod
-		PZMSKS = 1 << trst_gpio;					//mod
-		PZPAT1C = 1 << trst_gpio;					//mod
-		PZPAT0C = 1 << trst_gpio;					//mod
+	if (trst_gpio != -1) {
+		PZINTC = 1 << trst_gpio;
+		PZMSKS = 1 << trst_gpio;
+		PZPAT1C = 1 << trst_gpio;
+		PZPAT0C = 1 << trst_gpio;
 		PZGID2LD = 0x3;
 	}
 	if (srst_gpio != -1) {
