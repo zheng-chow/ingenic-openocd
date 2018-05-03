@@ -1232,8 +1232,6 @@ int mips32_pracc_write_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	/* fcsr */
 	if (LOWER16((regs[MIPS32_FCSR-MIPS32_F0])) == 0)					/* if lower half word is 0, lui instruction only */
 		pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[MIPS32_FCSR-MIPS32_F0]))));
-	else if (UPPER16((regs[MIPS32_FCSR-MIPS32_F0])) == 0)					/* if upper half word is 0, ori with $0 only*/
-		pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[MIPS32_FCSR-MIPS32_F0]))));
 	else {									/* default, load with lui and ori instructions */
 		pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[MIPS32_FCSR-MIPS32_F0]))));
 		pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[MIPS32_FCSR-MIPS32_F0]))));
