@@ -146,108 +146,46 @@ void jtag_command_queue_reset(void)
 
 enum scan_type jtag_scan_type(const struct scan_command *cmd)
 {
-	int i;
 	int type = 0;
 
-	for (i = 0; i < cmd->num_fields; i++) {
-		if (cmd->fields[i].in_value)
-			type |= SCAN_IN;
-		if (cmd->fields[i].out_value)
-			type |= SCAN_OUT;
-	}
+	if (cmd->fields[0].in_value)
+		type |= SCAN_IN;
+	if (cmd->fields[0].out_value)
+		type |= SCAN_OUT;
 
 	return type;
-}
-
-int jtag_scan_size(const struct scan_command *cmd)
-{
-	int bit_count = 0;
-	int i;
-
-	/* count bits in scan command */
-	for (i = 0; i < cmd->num_fields; i++)
-		bit_count += cmd->fields[i].num_bits;
-
-	return bit_count;
 }
 
 int jtag_build_buffer(const struct scan_command *cmd, uint8_t **buffer)
 {
 	int bit_count = 0;
-	int i;
 
-	bit_count = jtag_scan_size(cmd);
+	bit_count = cmd->fields[0].num_bits;
 	*buffer = calloc(1, DIV_ROUND_UP(bit_count, 8));
 
-	bit_count = 0;
-
-	DEBUG_JTAG_IO("%s num_fields: %i",
-			cmd->ir_scan ? "IRSCAN" : "DRSCAN",
-			cmd->num_fields);
-
-	for (i = 0; i < cmd->num_fields; i++) {
-		if (cmd->fields[i].out_value) {
-#ifdef _DEBUG_JTAG_IO_
-			char *char_buf = buf_to_str(cmd->fields[i].out_value,
-				(cmd->fields[i].num_bits > DEBUG_JTAG_IOZ)
-					? DEBUG_JTAG_IOZ
-					: cmd->fields[i].num_bits, 16);
-
-			LOG_DEBUG("fields[%i].out_value[%i]: 0x%s", i,
-					cmd->fields[i].num_bits, char_buf);
-			free(char_buf);
-#endif
-			buf_set_buf(cmd->fields[i].out_value, 0, *buffer,
-					bit_count, cmd->fields[i].num_bits);
-		} else {
-			DEBUG_JTAG_IO("fields[%i].out_value[%i]: NULL",
-					i, cmd->fields[i].num_bits);
-		}
-
-		bit_count += cmd->fields[i].num_bits;
+	if (cmd->fields[0].out_value) {
+		buf_set_buf(cmd->fields[0].out_value, 0, *buffer,
+				0, cmd->fields[0].num_bits);
 	}
-
-	/*DEBUG_JTAG_IO("bit_count totalling: %i",  bit_count); */
 
 	return bit_count;
 }
 
 int jtag_read_buffer(uint8_t *buffer, const struct scan_command *cmd)
 {
-	int i;
-	int bit_count = 0;
-	int retval;
+	/* if neither in_value nor in_handler
+	 * are specified we don't have to examine this field
+	 */
+	if (cmd->fields[0].in_value) {
+		int num_bits = cmd->fields[0].num_bits;
+		uint8_t *captured = buf_set_buf(buffer, 0,
+				malloc(DIV_ROUND_UP(num_bits, 8)), 0, num_bits);
 
-	/* we return ERROR_OK, unless a check fails, or a handler reports a problem */
-	retval = ERROR_OK;
+		if (cmd->fields[0].in_value)
+			buf_cpy(captured, cmd->fields[0].in_value, num_bits);
 
-	for (i = 0; i < cmd->num_fields; i++) {
-		/* if neither in_value nor in_handler
-		 * are specified we don't have to examine this field
-		 */
-		if (cmd->fields[i].in_value) {
-			int num_bits = cmd->fields[i].num_bits;
-			uint8_t *captured = buf_set_buf(buffer, bit_count,
-					malloc(DIV_ROUND_UP(num_bits, 8)), 0, num_bits);
-
-#ifdef _DEBUG_JTAG_IO_
-			char *char_buf = buf_to_str(captured,
-					(num_bits > DEBUG_JTAG_IOZ)
-						? DEBUG_JTAG_IOZ
-						: num_bits, 16);
-
-			LOG_DEBUG("fields[%i].in_value[%i]: 0x%s",
-					i, num_bits, char_buf);
-			free(char_buf);
-#endif
-
-			if (cmd->fields[i].in_value)
-				buf_cpy(captured, cmd->fields[i].in_value, num_bits);
-
-			free(captured);
-		}
-		bit_count += cmd->fields[i].num_bits;
+		free(captured);
 	}
 
-	return retval;
+	return ERROR_OK;
 }
