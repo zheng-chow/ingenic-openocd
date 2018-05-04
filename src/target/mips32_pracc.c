@@ -352,8 +352,6 @@ void pracc_add_li32(struct pracc_queue_info *ctx, uint32_t reg_num, uint32_t dat
 {
 	if (LOWER16(data) == 0 && optimize)
 		pracc_add(ctx, 0, MIPS32_LUI(ctx->isa, reg_num, UPPER16(data)));	/* load only upper value */
-	else if (UPPER16(data) == 0 && optimize)
-		pracc_add(ctx, 0, MIPS32_ORI(ctx->isa, reg_num, 0, LOWER16(data)));	/* load only lower */
 	else {
 		pracc_add(ctx, 0, MIPS32_LUI(ctx->isa, reg_num, UPPER16(data)));	/* load upper and lower */
 		pracc_add(ctx, 0, MIPS32_ORI(ctx->isa, reg_num, reg_num, LOWER16(data)));
