@@ -352,6 +352,8 @@ void pracc_add_li32(struct pracc_queue_info *ctx, uint32_t reg_num, uint32_t dat
 {
 	if (LOWER16(data) == 0 && optimize)
 		pracc_add(ctx, 0, MIPS32_LUI(ctx->isa, reg_num, UPPER16(data)));	/* load only upper value */
+	else if (UPPER16(data) == 0 && optimize)
+		pracc_add(ctx, 0, MIPS32_ORI(ctx->isa, reg_num, 0 , LOWER16(data)));    /* load only lower value */
 	else {
 		pracc_add(ctx, 0, MIPS32_LUI(ctx->isa, reg_num, UPPER16(data)));	/* load upper and lower */
 		pracc_add(ctx, 0, MIPS32_ORI(ctx->isa, reg_num, reg_num, LOWER16(data)));
@@ -1143,8 +1145,7 @@ int mips32_pracc_read_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 			  MIPS32_ISA_SW(8, PRACC_OUT_OFFSET + ((i - MIPS32_F0) + 1) * 4, 1));
 
 	pracc_add(&ctx, 0, MIPS32_ISA_MFC0(1, 31, 0));					/* move COP0 DeSave to $1, restore reg1 */
-	pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16(ejtag_info->reg8)));		/* restore upper 16 of $8 */
-	pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16(ejtag_info->reg8)));	/* restore lower 16 of $8 */
+	pracc_add_li32(&ctx, 8, ejtag_info->reg8, 1);
 
 	pracc_add(&ctx, 0, MIPS32_ISA_SYNC);
 	pracc_add(&ctx, 0, MIPS32_ISA_B(NEG16(ctx.code_count + 1)));	/* jump to start */
@@ -1214,39 +1215,16 @@ int mips32_pracc_write_fpu_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 
 	/* load f0..f31 */
 	for (int i = MIPS32_F0; i < MIPS32_FCSR; i++) {
-		if (LOWER16((regs[i-MIPS32_F0])) == 0)					/* if lower half word is 0, lui instruction only */
-			pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[i-MIPS32_F0]))));
-		else if (UPPER16((regs[i-MIPS32_F0])) == 0)					/* if upper half word is 0, ori with $0 only*/
-			pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 0, LOWER16((regs[i-MIPS32_F0]))));
-		else {									/* default, load with lui and ori instructions */
-			pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[i-MIPS32_F0]))));
-			pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[i-MIPS32_F0]))));
-		}
-
+		pracc_add_li32(&ctx, 8, regs[i - MIPS32_F0], 1);
 		pracc_add(&ctx, 0, MIPS32_ISA_MTC1(8, (i - MIPS32_F0)));
-
 	}
 
 	/* fcsr */
-	if (LOWER16((regs[MIPS32_FCSR-MIPS32_F0])) == 0)					/* if lower half word is 0, lui instruction only */
-		pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[MIPS32_FCSR-MIPS32_F0]))));
-	else {									/* default, load with lui and ori instructions */
-		pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[MIPS32_FCSR-MIPS32_F0]))));
-		pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[MIPS32_FCSR-MIPS32_F0]))));
-	}
-
+	pracc_add_li32(&ctx, 8, regs[MIPS32_FCSR - MIPS32_F0], 1);
 	pracc_add(&ctx, 0, MIPS32_ISA_CTC1(8, 31));
 
 	/* fir */
-	if (LOWER16((regs[MIPS32_FIR])) == 0)					/* if lower half word is 0, lui instruction only */
-		pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[MIPS32_FIR-MIPS32_F0]))));
-	else if (UPPER16((regs[MIPS32_FIR])) == 0)					/* if upper half word is 0, ori with $0 only*/
-		pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[MIPS32_FIR-MIPS32_F0]))));
-	else {									/* default, load with lui and ori instructions */
-		pracc_add(&ctx, 0, MIPS32_ISA_LUI(8, UPPER16((regs[MIPS32_FIR-MIPS32_F0]))));
-		pracc_add(&ctx, 0, MIPS32_ISA_ORI(8, 8, LOWER16((regs[MIPS32_FIR-MIPS32_F0]))));
-	}
-
+	pracc_add_li32(&ctx, 8, regs[MIPS32_FIR - MIPS32_F0], 1);
 	pracc_add(&ctx, 0, MIPS32_ISA_CTC1(8, 0));
 
 	pracc_add(&ctx, 0, MIPS32_ISA_MTC0(15, 31, 0));				/* load $15 in DeSave */
