@@ -30,12 +30,6 @@
 #include <jtag/interface.h>
 #include <jtag/commands.h>
 
-#include <sys/mman.h>
-
-extern volatile uint32_t *pio_base;
-extern uint32_t *tcsm2_base;
-extern int port_status;
-
 /* YUK! - but this is currently a global.... */
 extern struct jtag_interface *jtag_interface;
 

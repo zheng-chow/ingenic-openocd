@@ -141,7 +141,7 @@ uint32_t jdi_write_32(enum scan_type type, uint32_t data, uint8_t tms_flag)
 	SHARE_DATA = (type << 20) | (tms_flag << 16) | 0x20000000;
 	while(SHARE_DATA & 0x20000000);
 
-	return  SHARE_DATA2;
+	return SHARE_DATA2;
 }
 
 static int firmware[] ={
