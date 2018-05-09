@@ -30,13 +30,16 @@
 #include <jtag/interface.h>
 #include <jtag/commands.h>
 
+#define SHARE_DATA	(*(volatile unsigned int *)(tcsm2_base+0x0ff0/4))
+#define SHARE_DATA2	(*(volatile unsigned int *)(tcsm2_base+0x0ff4/4))
+
+extern uint32_t *tcsm2_base;
+
 /* YUK! - but this is currently a global.... */
 extern struct jtag_interface *jtag_interface;
 
 extern int jdi_led(int on);
 extern int jdi_state_move(int skip, uint8_t tms_scan, int tms_count);
-extern uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag);
-extern uint32_t jdi_write_32(enum scan_type type, uint32_t data, uint8_t tms_flag);
 
 /**
  * Function bitbang_stableclocks
@@ -90,71 +93,113 @@ static int bitbang_state_move(int skip)
 	return ERROR_OK;
 }
 
-static int bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer,
-		unsigned scan_size)
-{
-	tap_state_t saved_end_state = tap_get_end_state();
-
-	unsigned turn_num;
-	unsigned turn_cnt;
-	unsigned temp, size;
-
-	if (!((!ir_scan &&
-			(tap_get_state() == TAP_DRSHIFT)) ||
-			(ir_scan && (tap_get_state() == TAP_IRSHIFT)))) {
-		if (ir_scan)
-			bitbang_end_state(TAP_IRSHIFT);
-		else
-			bitbang_end_state(TAP_DRSHIFT);
-
-		bitbang_state_move(0);
-		bitbang_end_state(saved_end_state);
-	}
-
-	if(scan_size <= 8)
-		buffer[0] = jdi_write_8(type, buffer[0], scan_size, 1);
-	else {
-		turn_num = (scan_size-1)/32;
-		size = scan_size;
-		for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
-			if(scan_size <= 32) {
-				temp = jdi_write_32(type, buf_get_u32(buffer, turn_cnt, size), 1);
-				if (type != SCAN_OUT)
-					memcpy(&buffer[turn_cnt*4], &temp, 4);//buf_set_u32(buffer, turn_cnt, size, temp2);
-			} else {
-				temp = jdi_write_32(type, buf_get_u32(buffer, turn_cnt, size), 0);
-				if (type != SCAN_OUT)
-					memcpy(&buffer[turn_cnt*4], &temp, 4);//buf_set_u32(buffer, turn_cnt, size, temp2);
-				scan_size -= 32;
-			}
-		}
-	}
-
-	if (tap_get_state() != tap_get_end_state()) {
-		/* we *KNOW* the above loop transitioned out of
-		 * the shift state, so we skip the first state
-		 * and move directly to the end state.
-		 */
-		bitbang_state_move(1);
-	}
-	return ERROR_OK;
-}
-
 int bitbang_execute_queue(void)
 {
 	struct jtag_command *cmd = jtag_command_queue;	/* currently processed command */
-	int scan_size;
+	struct jtag_command *cmd_next = jtag_command_queue;
+	int scan_size, scan_size_next;
+	unsigned prepare = 0;
+	unsigned mcu_status = 0;
+	unsigned turn_num;
+	unsigned turn_cnt;
+	unsigned temp, size;
 	enum scan_type type;
-	uint8_t *buffer;
+	enum scan_type type_next;
+	uint8_t *buffer, *buffer_next;
 
 	jdi_led(1);
 
 	while (cmd) {
 		if (cmd->type == JTAG_SCAN) {
 			bitbang_end_state(cmd->cmd.scan->end_state);
-			scan_size = jtag_build_buffer(cmd->cmd.scan, &buffer);
-			type = jtag_scan_type(cmd->cmd.scan);
-			bitbang_scan(cmd->cmd.scan->ir_scan, type, buffer, scan_size);
+			if(prepare) {
+				prepare = 0;
+				type = type_next;
+				buffer = buffer_next;
+				scan_size = scan_size_next;
+			} else {
+				scan_size = jtag_build_buffer(cmd->cmd.scan, &buffer);
+				type = jtag_scan_type(cmd->cmd.scan);
+			}
+			tap_state_t saved_end_state = tap_get_end_state();
+
+			if (!((!cmd->cmd.scan->ir_scan && (tap_get_state() == TAP_DRSHIFT)) ||
+					(cmd->cmd.scan->ir_scan && (tap_get_state() == TAP_IRSHIFT)))) {
+				if (cmd->cmd.scan->ir_scan)
+					bitbang_end_state(TAP_IRSHIFT);
+				else
+					bitbang_end_state(TAP_DRSHIFT);
+
+				bitbang_state_move(0);
+				bitbang_end_state(saved_end_state);
+			}
+
+			if(scan_size <= 8) {
+//  			0000  0000  0000  0000  0000  0000  0000  0000
+//  			状态        类型   FTMS  次------数  数------据
+				SHARE_DATA = (type << 20) | (1 << 16) | (scan_size << 8) | buffer[0] | 0x40000000;
+				cmd_next = cmd->next;
+				if (cmd_next) {
+					if (cmd_next->type == JTAG_SCAN) {
+						scan_size_next = jtag_build_buffer(cmd_next->cmd.scan, &buffer_next);
+						type_next = jtag_scan_type(cmd_next->cmd.scan);
+						prepare = 1;
+					}
+				}
+				do
+				{
+					mcu_status = SHARE_DATA;
+				}
+				while(mcu_status & 0x40000000);
+
+				buffer[0] = (uint8_t)(mcu_status & 0x000000ff);
+}
+			else {
+				turn_num = (scan_size-1)/32;
+				size = scan_size;
+				for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
+					if(scan_size <= 32) {
+						SHARE_DATA2 = buf_get_u32(buffer, turn_cnt, size);
+						SHARE_DATA = (type << 20) | (1 << 16) | 0x20000000;
+						cmd_next = cmd->next;
+						if (cmd_next) {
+							if (cmd_next->type == JTAG_SCAN) {
+								scan_size_next = jtag_build_buffer(cmd_next->cmd.scan, &buffer_next);
+								type_next = jtag_scan_type(cmd_next->cmd.scan);
+								prepare = 1;
+							}
+						}
+						while(SHARE_DATA & 0x20000000);
+						temp = SHARE_DATA2;
+						if (type != SCAN_OUT)
+							memcpy(&buffer[turn_cnt*4], &temp, 4);
+					} else {
+						SHARE_DATA2 = buf_get_u32(buffer, turn_cnt, size);
+						SHARE_DATA = (type << 20) | 0x20000000;
+						cmd_next = cmd->next;
+						if (cmd_next) {
+							if (cmd_next->type == JTAG_SCAN) {
+								scan_size_next = jtag_build_buffer(cmd_next->cmd.scan, &buffer_next);
+								type_next = jtag_scan_type(cmd_next->cmd.scan);
+								prepare = 1;
+							}
+						}
+						while(SHARE_DATA & 0x20000000);
+						temp = SHARE_DATA2;
+						if (type != SCAN_OUT)
+							memcpy(&buffer[turn_cnt*4], &temp, 4);
+						scan_size -= 32;
+					}
+				}
+			}
+
+			if (tap_get_state() != tap_get_end_state()) {
+				/* we *KNOW* the above loop transitioned out of
+				 * the shift state, so we skip the first state
+				 * and move directly to the end state.
+				 */
+				bitbang_state_move(1);
+			}
 			if (type != SCAN_OUT)
 				jtag_read_buffer(buffer, cmd->cmd.scan);
 			if (buffer)

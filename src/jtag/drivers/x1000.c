@@ -117,33 +117,6 @@ int jdi_state_move(int skip, uint8_t tms_scan, int tms_count)
 	return ERROR_OK;
 }
 
-uint8_t jdi_write_8(enum scan_type type, uint8_t data, unsigned scan_size, uint8_t tms_flag)
-{
-//  0000  0000  0000  0000  0000  0000  0000  0000
-//  状态        类型   FTMS  次------数  数------据
-	unsigned int mcu_status = 0;
-
-	SHARE_DATA = (type << 20) | (tms_flag << 16) | (scan_size << 8) | data | 0x40000000;
-	do
-	{
-		mcu_status = SHARE_DATA;
-	}
-	while(mcu_status & 0x40000000);
-
-	return (uint8_t)(mcu_status & 0x000000ff);
-}
-
-uint32_t jdi_write_32(enum scan_type type, uint32_t data, uint8_t tms_flag)
-{
-//  0000  0000  0000  0000  0000  0000  0000  0000
-//  状态        类型   FTMS  次------数  数------据
-	SHARE_DATA2 = data;
-	SHARE_DATA = (type << 20) | (tms_flag << 16) | 0x20000000;
-	while(SHARE_DATA & 0x20000000);
-
-	return SHARE_DATA2;
-}
-
 static int firmware[] ={
 	#include "firmware.hex"
 };
