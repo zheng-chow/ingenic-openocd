@@ -111,8 +111,8 @@ int jdi_state_move(int skip, uint8_t tms_scan, int tms_count)
 {
 //  0000  0000  0000  0000  0000  0000  0000  0000
 //  状态              skip   tms_scan    tms_count
-	SHARE_DATA = (skip << 16) | (tms_scan << 8) | tms_count | 0x80000000;
-	while(SHARE_DATA & 0x80000000);
+	SHARE_DATA = (skip << 16) | (tms_scan << 8) | tms_count | 0x10000000;
+	while(SHARE_DATA & 0x10000000);
 
 	return ERROR_OK;
 }

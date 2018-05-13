@@ -97,6 +97,7 @@ int bitbang_execute_queue(void)
 {
 	struct jtag_command *cmd = jtag_command_queue;	/* currently processed command */
 	struct jtag_command *cmd_next = jtag_command_queue;
+	int num_bits;
 	int scan_size, scan_size_next;
 	unsigned prepare = 0;
 	unsigned mcu_status = 0;
@@ -105,13 +106,13 @@ int bitbang_execute_queue(void)
 	unsigned temp, size;
 	enum scan_type type;
 	enum scan_type type_next;
+	uint8_t *captured;
 	uint8_t *buffer, *buffer_next;
 
 	jdi_led(1);
 
 	while (cmd) {
-		if (cmd->type == JTAG_SCAN) {
-			bitbang_end_state(cmd->cmd.scan->end_state);
+		if (__builtin_expect(cmd->type == JTAG_SCAN, 1)) {
 			if(prepare) {
 				prepare = 0;
 				type = type_next;
@@ -120,18 +121,6 @@ int bitbang_execute_queue(void)
 			} else {
 				scan_size = jtag_build_buffer(cmd->cmd.scan, &buffer);
 				type = jtag_scan_type(cmd->cmd.scan);
-			}
-			tap_state_t saved_end_state = tap_get_end_state();
-
-			if (!((!cmd->cmd.scan->ir_scan && (tap_get_state() == TAP_DRSHIFT)) ||
-					(cmd->cmd.scan->ir_scan && (tap_get_state() == TAP_IRSHIFT)))) {
-				if (cmd->cmd.scan->ir_scan)
-					bitbang_end_state(TAP_IRSHIFT);
-				else
-					bitbang_end_state(TAP_DRSHIFT);
-
-				bitbang_state_move(0);
-				bitbang_end_state(saved_end_state);
 			}
 
 			if(scan_size <= 8) {
@@ -146,21 +135,33 @@ int bitbang_execute_queue(void)
 						prepare = 1;
 					}
 				}
+				if (__builtin_expect(type != SCAN_OUT, 0)) {
+					num_bits = cmd->cmd.scan->fields[0].num_bits;
+					captured = malloc(DIV_ROUND_UP(num_bits, 8));
+				}
 				do
 				{
 					mcu_status = SHARE_DATA;
 				}
 				while(mcu_status & 0x40000000);
-
 				buffer[0] = (uint8_t)(mcu_status & 0x000000ff);
-}
-			else {
+				if (__builtin_expect(type != SCAN_OUT, 0)) {
+					captured = buf_set_buf(buffer, 0, captured, 0, num_bits);
+					buf_cpy(captured, cmd->cmd.scan->fields[0].in_value, num_bits);
+					free(captured);
+				}
+				if (buffer)
+					free(buffer);
+			} else {
 				turn_num = (scan_size-1)/32;
 				size = scan_size;
 				for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
-					if(scan_size <= 32) {
+					if(__builtin_expect(scan_size == 32, 1)) {
 						SHARE_DATA2 = buf_get_u32(buffer, turn_cnt, size);
-						SHARE_DATA = (type << 20) | (1 << 16) | 0x20000000;
+						if (__builtin_expect(size == 32, 1))
+							SHARE_DATA = (1 << 24) | (type << 20) | (1 << 16) | 0x20000000;
+						if (__builtin_expect(size == 672, 0))
+							SHARE_DATA = (type << 20) | (2 << 16) | 0x20000000;
 						cmd_next = cmd->next;
 						if (cmd_next) {
 							if (cmd_next->type == JTAG_SCAN) {
@@ -168,6 +169,10 @@ int bitbang_execute_queue(void)
 								type_next = jtag_scan_type(cmd_next->cmd.scan);
 								prepare = 1;
 							}
+						}
+						if (type != SCAN_OUT) {
+							num_bits = cmd->cmd.scan->fields[0].num_bits;
+							captured = malloc(DIV_ROUND_UP(num_bits, 8));
 						}
 						while(SHARE_DATA & 0x20000000);
 						temp = SHARE_DATA2;
@@ -175,15 +180,10 @@ int bitbang_execute_queue(void)
 							memcpy(&buffer[turn_cnt*4], &temp, 4);
 					} else {
 						SHARE_DATA2 = buf_get_u32(buffer, turn_cnt, size);
-						SHARE_DATA = (type << 20) | 0x20000000;
-						cmd_next = cmd->next;
-						if (cmd_next) {
-							if (cmd_next->type == JTAG_SCAN) {
-								scan_size_next = jtag_build_buffer(cmd_next->cmd.scan, &buffer_next);
-								type_next = jtag_scan_type(cmd_next->cmd.scan);
-								prepare = 1;
-							}
-						}
+						if (scan_size == 672)
+							SHARE_DATA = (2 << 24) | (type << 20) | 0x20000000;
+						else
+							SHARE_DATA = (type << 20) | 0x20000000;
 						while(SHARE_DATA & 0x20000000);
 						temp = SHARE_DATA2;
 						if (type != SCAN_OUT)
@@ -191,21 +191,16 @@ int bitbang_execute_queue(void)
 						scan_size -= 32;
 					}
 				}
+				if (type != SCAN_OUT) {
+					captured = buf_set_buf(buffer, 0, captured, 0, num_bits);
+					buf_cpy(captured, cmd->cmd.scan->fields[0].in_value, num_bits);
+					free(captured);
+				}
+				if (buffer)
+					free(buffer);
 			}
-
-			if (tap_get_state() != tap_get_end_state()) {
-				/* we *KNOW* the above loop transitioned out of
-				 * the shift state, so we skip the first state
-				 * and move directly to the end state.
-				 */
-				bitbang_state_move(1);
-			}
-			if (type != SCAN_OUT)
-				jtag_read_buffer(buffer, cmd->cmd.scan);
-			if (buffer)
-				free(buffer);
 		}
-		if (cmd->type == JTAG_RESET) {
+		if (__builtin_expect(cmd->type == JTAG_RESET, 0)) {
 			if ((cmd->cmd.reset->trst == 1) ||
 					(cmd->cmd.reset->srst && (jtag_get_reset_config() & RESET_SRST_PULLS_TRST)))
 				tap_set_state(TAP_RESET);
@@ -213,12 +208,12 @@ int bitbang_execute_queue(void)
 						cmd->cmd.reset->srst) != ERROR_OK)
 				return ERROR_FAIL;
 		}
-		if (cmd->type == JTAG_TLR_RESET) {
+		if (__builtin_expect(cmd->type == JTAG_TLR_RESET, 0)) {
 			bitbang_end_state(cmd->cmd.statemove->end_state);
 			if (bitbang_state_move(0) != ERROR_OK)
 				return ERROR_FAIL;
 		}
-		if (cmd->type == JTAG_SLEEP)
+		if (__builtin_expect(cmd->type == JTAG_SLEEP, 0))
 			jtag_sleep(cmd->cmd.sleep->us);
 		cmd = cmd->next;
 	}
