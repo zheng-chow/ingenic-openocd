@@ -125,8 +125,8 @@ int bitbang_execute_queue(void)
 
 			if(scan_size <= 8) {
 //  			0000  0000  0000  0000  0000  0000  0000  0000
-//  			状态        类型   FTMS  次------数  数------据
-				SHARE_DATA = (type << 20) | (1 << 16) | (scan_size << 8) | buffer[0] | 0x40000000;
+//  			      状态  类型   FTMS  次------数  数------据
+				SHARE_DATA = (type << 20) | (1 << 16) | (scan_size << 8) | buffer[0] | 0x08000000;
 				cmd_next = cmd->next;
 				if (cmd_next) {
 					if (cmd_next->type == JTAG_SCAN) {
@@ -143,7 +143,7 @@ int bitbang_execute_queue(void)
 				{
 					mcu_status = SHARE_DATA;
 				}
-				while(mcu_status & 0x40000000);
+				while(mcu_status & 0x08000000);
 				buffer[0] = (uint8_t)(mcu_status & 0x000000ff);
 				if (__builtin_expect(type != SCAN_OUT, 0)) {
 					captured = buf_set_buf(buffer, 0, captured, 0, num_bits);
@@ -152,16 +152,16 @@ int bitbang_execute_queue(void)
 				}
 				if (buffer)
 					free(buffer);
-			} else {
+			}  else {
 				turn_num = (scan_size-1)/32;
 				size = scan_size;
 				for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
 					if(__builtin_expect(scan_size == 32, 1)) {
 						SHARE_DATA2 = buf_get_u32(buffer, turn_cnt, size);
 						if (__builtin_expect(size == 32, 1))
-							SHARE_DATA = (1 << 24) | (type << 20) | (1 << 16) | 0x20000000;
+							SHARE_DATA = (1 << 28) | (type << 20) | (1 << 16) | 0x02000000;
 						if (__builtin_expect(size == 672, 0))
-							SHARE_DATA = (type << 20) | (2 << 16) | 0x20000000;
+							SHARE_DATA = (type << 20) | (2 << 16) | 0x02000000;
 						cmd_next = cmd->next;
 						if (cmd_next) {
 							if (cmd_next->type == JTAG_SCAN) {
@@ -174,17 +174,17 @@ int bitbang_execute_queue(void)
 							num_bits = cmd->cmd.scan->fields[0].num_bits;
 							captured = malloc(DIV_ROUND_UP(num_bits, 8));
 						}
-						while(SHARE_DATA & 0x20000000);
+						while(SHARE_DATA & 0x02000000);
 						temp = SHARE_DATA2;
 						if (type != SCAN_OUT)
 							memcpy(&buffer[turn_cnt*4], &temp, 4);
 					} else {
 						SHARE_DATA2 = buf_get_u32(buffer, turn_cnt, size);
 						if (scan_size == 672)
-							SHARE_DATA = (2 << 24) | (type << 20) | 0x20000000;
+							SHARE_DATA = (2 << 28) | (type << 20) | 0x02000000;
 						else
-							SHARE_DATA = (type << 20) | 0x20000000;
-						while(SHARE_DATA & 0x20000000);
+							SHARE_DATA = (type << 20) | 0x02000000;
+						while(SHARE_DATA & 0x02000000);
 						temp = SHARE_DATA2;
 						if (type != SCAN_OUT)
 							memcpy(&buffer[turn_cnt*4], &temp, 4);

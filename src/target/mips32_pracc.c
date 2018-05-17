@@ -73,6 +73,11 @@
 #include "mips32.h"
 #include "mips32_pracc.h"
 
+#define SHARE_DATA	(*(volatile unsigned int *)(tcsm2_base+0x0ff0/4))
+#define SHARE_DATA2	(*(volatile unsigned int *)(tcsm2_base+0x0ff4/4))
+
+extern uint32_t *tcsm2_base;
+
 static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info)
 {
 	int64_t then = timeval_ms();
@@ -101,20 +106,20 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info)
 
 static int try_wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 {
-    uint32_t ejtag_ctrl;
+	uint32_t ejtag_ctrl;
 
-    /* wait for the PrAcc to become "1" */
-    mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+	/* wait for the PrAcc to become "1" */
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 
-    ejtag_ctrl = ejtag_info->ejtag_ctrl;
-    int retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-    if (retval != ERROR_OK) {
-        LOG_DEBUG("mips_ejtag_drscan_32 Failed");
-        return retval;
-    }
+	ejtag_ctrl = ejtag_info->ejtag_ctrl;
+	int retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips_ejtag_drscan_32 Failed");
+		return retval;
+	}
 
-    *ctrl = ejtag_ctrl;
-    return ERROR_OK;
+	*ctrl = ejtag_ctrl;
+	return ERROR_OK;
 }
 
 /* Shift in control and address for a new processor access, save them in ejtag_info */
@@ -132,17 +137,17 @@ static int mips32_pracc_read_ctrl_addr(struct mips_ejtag *ejtag_info)
 
 static int mips32_pracc_try_read_ctrl_addr(struct mips_ejtag *ejtag_info)
 {
-    int retval = try_wait_for_pracc_rw(ejtag_info, &ejtag_info->pa_ctrl);
-    if (retval != ERROR_OK) {
-        LOG_DEBUG("try_wait_for_pracc_rw failed");
-        return retval;
-    }
+	int retval = try_wait_for_pracc_rw(ejtag_info, &ejtag_info->pa_ctrl);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("try_wait_for_pracc_rw failed");
+		return retval;
+	}
 
-    mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
-    ejtag_info->pa_addr = 0;
-    retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_info->pa_addr);
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+	ejtag_info->pa_addr = 0;
+	retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_info->pa_addr);
 
-    return retval;
+	return retval;
 }
 
 /* Finish processor access */
@@ -1360,50 +1365,93 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
                 	return retval;
         	}
 	} else {
-		ack_ctrl = malloc((count + 2) * sizeof(uint32_t));
-		if (ack_ctrl == NULL) {
-			LOG_ERROR("Out of memory");
-			return ERROR_FAIL;
-		}
-		req_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+		if (debug_level >= LOG_LVL_DEBUG) {
+			ack_ctrl = malloc((count + 2) * sizeof(uint32_t));
+			if (ack_ctrl == NULL) {
+				LOG_ERROR("Out of memory");
+				return ERROR_FAIL;
+			}
+			req_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
 
-		val = addr; /* Send the load start address */
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-		mips_ejtag_add_drscan_32(ejtag_info, val, NULL);
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-		mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl);
-
-		val = addr + (count - 1) * 4; /* Send the load end address */
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-                mips_ejtag_add_drscan_32(ejtag_info, val, NULL);
-                mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-                mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 1);
-
-		/* from xfer area to memory */
-		/* from memory to xfer area*/
-		for (int i = 0; i < count; i++) {
+			val = addr; /* Send the load start address */
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-			mips_ejtag_add_drscan_32(ejtag_info, *buf, write_t ? NULL : buf);
+			mips_ejtag_add_drscan_32(ejtag_info, val, NULL);
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-			mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 2 + i);
-			buf++;
-		}
+			mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl);
 
-		retval = jtag_execute_queue();              /* execute queued scans */
-		if (retval != ERROR_OK) {
-			LOG_ERROR("fastdata load execute queue failed");
-                        return retval;
-		}
+			val = addr + (count - 1) * 4; /* Send the load end address */
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+	                mips_ejtag_add_drscan_32(ejtag_info, val, NULL);
+	                mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+	                mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 1);
 
-		if (debug_level >= LOG_LVL_DEBUG) {	
+			/* from xfer area to memory */
+			/* from memory to xfer area*/
+			for (int i = 0; i < count; i++) {
+				mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+				mips_ejtag_add_drscan_32(ejtag_info, *buf, write_t ? NULL : buf);
+				mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+				mips_ejtag_add_drscan_32(ejtag_info, req_ctrl, ack_ctrl + 2 + i);
+				buf++;
+			}
+
+			retval = jtag_execute_queue();              /* execute queued scans */
+			if (retval != ERROR_OK) {
+				LOG_ERROR("fastdata load execute queue failed");
+	                        return retval;
+			}
+
 			for (int i = 0; i < count + 2; i++) {
 				if ((ack_ctrl[i] & EJTAG_CTRL_PRACC) == 0) {
 					LOG_DEBUG("fastdata load verify failed");
                 	        	return ERROR_FAIL;
 				}
 			}
+			free(ack_ctrl);
+		} else {
+			if (write_t) {
+				req_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+				val = addr; /* Send the load start address */
+				SHARE_DATA2 = val;
+				SHARE_DATA = 2 << 20 | 0x04000000;
+				while(SHARE_DATA & 0x04000000);
+
+				val = addr + (count - 1) * 4; /* Send the load end address */
+				SHARE_DATA2 = val;
+				SHARE_DATA = 2 << 20 | 0x04000000;
+				while(SHARE_DATA & 0x04000000);
+
+				/* from xfer area to memory */
+				/* from memory to xfer area*/
+				for (int i = 0; i < count; i++) {
+					SHARE_DATA2 = *buf;
+					SHARE_DATA = 2 << 20 | 0x04000000;
+					while(SHARE_DATA & 0x04000000);
+					buf++;
+				}
+			} else {
+				req_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+				val = addr; /* Send the load start address */
+				SHARE_DATA2 = val;
+				SHARE_DATA = 2 << 20 | 0x04000000;
+				while(SHARE_DATA & 0x04000000);
+
+				val = addr + (count - 1) * 4; /* Send the load end address */
+				SHARE_DATA2 = val;
+				SHARE_DATA = 2 << 20 | 0x04000000;
+				while(SHARE_DATA & 0x04000000);
+
+				/* from xfer area to memory */
+				/* from memory to xfer area*/
+				for (int i = 0; i < count; i++) {
+					SHARE_DATA2 = *buf;
+					SHARE_DATA = 3 << 20 | 0x04000000;
+					while(SHARE_DATA & 0x04000000);
+					*buf = SHARE_DATA2;
+					buf++;
+				}
+			}
 		}
-		free(ack_ctrl);
 	}
 
 	retval = mips32_pracc_read_ctrl_addr(ejtag_info);

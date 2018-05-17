@@ -176,16 +176,13 @@ int jtag_read_buffer(uint8_t *buffer, const struct scan_command *cmd)
 	/* if neither in_value nor in_handler
 	 * are specified we don't have to examine this field
 	 */
-	if (cmd->fields[0].in_value) {
-		int num_bits = cmd->fields[0].num_bits;
-		uint8_t *captured = buf_set_buf(buffer, 0,
-				malloc(DIV_ROUND_UP(num_bits, 8)), 0, num_bits);
+	int num_bits = cmd->fields[0].num_bits;
+	uint8_t *captured = buf_set_buf(buffer, 0,
+			malloc(DIV_ROUND_UP(num_bits, 8)), 0, num_bits);
 
-		if (cmd->fields[0].in_value)
-			buf_cpy(captured, cmd->fields[0].in_value, num_bits);
+	buf_cpy(captured, cmd->fields[0].in_value, num_bits);
 
-		free(captured);
-	}
+	free(captured);
 
 	return ERROR_OK;
 }
