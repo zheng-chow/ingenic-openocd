@@ -60,7 +60,6 @@ struct pracc_queue_info {
 	int retval;
 	int code_count;
 	int store_count;
-	int max_code;		/* max intstructions with currently allocated memory */
 	pa_list *pracc_list;	/* Code and store addresses at dmseg */
 };
 

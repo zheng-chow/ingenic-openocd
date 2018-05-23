@@ -99,14 +99,11 @@ int bitbang_execute_queue(void)
 	struct jtag_command *cmd_next = jtag_command_queue;
 	int num_bits;
 	int scan_size, scan_size_next;
+	unsigned temp, size;
 	unsigned prepare = 0;
 	unsigned mcu_status = 0;
-	unsigned turn_num;
-	unsigned turn_cnt;
-	unsigned temp, size;
-	enum scan_type type;
-	enum scan_type type_next;
-	uint8_t *captured;
+	unsigned turn_num, turn_cnt;
+	enum scan_type type, type_next;
 	uint8_t *buffer, *buffer_next;
 
 	jdi_led(1);
@@ -122,37 +119,35 @@ int bitbang_execute_queue(void)
 				scan_size = jtag_build_buffer(cmd->cmd.scan, &buffer);
 				type = jtag_scan_type(cmd->cmd.scan);
 			}
-
-			if(scan_size <= 8) {
+			if(scan_size == 5) {
 //  			0000  0000  0000  0000  0000  0000  0000  0000
 //  			      状态  类型   FTMS  次------数  数------据
-				SHARE_DATA = (type << 20) | (1 << 16) | (scan_size << 8) | buffer[0] | 0x08000000;
+				SHARE_DATA = buffer[0] | 0x08000000;
+				cmd_next = cmd->next;
+				if (cmd_next->type == JTAG_SCAN) {
+					scan_size_next = jtag_build_buffer_prefetch(cmd_next->cmd.scan, &buffer_next);
+					type_next = jtag_scan_type(cmd_next->cmd.scan);
+					prepare = 1;
+				}
+				while(SHARE_DATA & 0x08000000);
+			} else if (scan_size == 7) {
+//  			0000  0000  0000  0000  0000  0000  0000  0000
+//  			      状态  类型   FTMS  次------数  数------据
+				SHARE_DATA = buffer[0] | 0x01100000;
 				cmd_next = cmd->next;
 				if (cmd_next) {
 					if (cmd_next->type == JTAG_SCAN) {
-						scan_size_next = jtag_build_buffer(cmd_next->cmd.scan, &buffer_next);
+						scan_size_next = jtag_build_buffer_prefetch(cmd_next->cmd.scan, &buffer_next);
 						type_next = jtag_scan_type(cmd_next->cmd.scan);
 						prepare = 1;
 					}
 				}
-				if (__builtin_expect(type != SCAN_OUT, 0)) {
-					num_bits = cmd->cmd.scan->fields[0].num_bits;
-					captured = malloc(DIV_ROUND_UP(num_bits, 8));
-				}
-				do
-				{
-					mcu_status = SHARE_DATA;
-				}
-				while(mcu_status & 0x08000000);
+				num_bits = cmd->cmd.scan->fields[0].num_bits;
+				do mcu_status = SHARE_DATA;
+				while(mcu_status & 0x01000000);
 				buffer[0] = (uint8_t)(mcu_status & 0x000000ff);
-				if (__builtin_expect(type != SCAN_OUT, 0)) {
-					captured = buf_set_buf(buffer, 0, captured, 0, num_bits);
-					buf_cpy(captured, cmd->cmd.scan->fields[0].in_value, num_bits);
-					free(captured);
-				}
-				if (buffer)
-					free(buffer);
-			}  else {
+				buf_cpy(buffer, cmd->cmd.scan->fields[0].in_value, num_bits);
+			} else {
 				turn_num = (scan_size-1)/32;
 				size = scan_size;
 				for (turn_cnt = 0; turn_cnt <= turn_num; turn_cnt++) {
@@ -165,15 +160,13 @@ int bitbang_execute_queue(void)
 						cmd_next = cmd->next;
 						if (cmd_next) {
 							if (cmd_next->type == JTAG_SCAN) {
-								scan_size_next = jtag_build_buffer(cmd_next->cmd.scan, &buffer_next);
+								scan_size_next = jtag_build_buffer_prefetch(cmd_next->cmd.scan, &buffer_next);
 								type_next = jtag_scan_type(cmd_next->cmd.scan);
 								prepare = 1;
 							}
 						}
-						if (type != SCAN_OUT) {
+						if (type != SCAN_OUT)
 							num_bits = cmd->cmd.scan->fields[0].num_bits;
-							captured = malloc(DIV_ROUND_UP(num_bits, 8));
-						}
 						while(SHARE_DATA & 0x02000000);
 						temp = SHARE_DATA2;
 						if (type != SCAN_OUT)
@@ -191,13 +184,8 @@ int bitbang_execute_queue(void)
 						scan_size -= 32;
 					}
 				}
-				if (type != SCAN_OUT) {
-					captured = buf_set_buf(buffer, 0, captured, 0, num_bits);
-					buf_cpy(captured, cmd->cmd.scan->fields[0].in_value, num_bits);
-					free(captured);
-				}
-				if (buffer)
-					free(buffer);
+				if (type != SCAN_OUT)
+					buf_cpy(buffer, cmd->cmd.scan->fields[0].in_value, num_bits);
 			}
 		}
 		if (__builtin_expect(cmd->type == JTAG_RESET, 0)) {

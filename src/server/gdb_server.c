@@ -691,21 +691,21 @@ static int gdb_get_packet(struct connection *connection, char *buffer, int *len)
 
 static int gdb_output_con(struct connection *connection, const char *line)
 {
-	char *hex_buffer;
+	static char hex_buffer[113 * 2 + 2];
 	int bin_size;
 
 	bin_size = strlen(line);
 
-	hex_buffer = malloc(bin_size * 2 + 2);
-	if (hex_buffer == NULL)
+	if(bin_size > 113) {
+		LOG_ERROR("GDB BUFFER TOO SMALL! NEED %d BYTES",(bin_size * 2 + 2));
 		return ERROR_GDB_BUFFER_TOO_SMALL;
+	}
 
 	hex_buffer[0] = 'O';
 	size_t pkt_len = hexify(hex_buffer + 1, (const uint8_t *)line, bin_size,
 		bin_size * 2 + 1);
 	int retval = gdb_put_packet(connection, hex_buffer, pkt_len + 1);
 
-	free(hex_buffer);
 	return retval;
 }
 
@@ -1159,8 +1159,8 @@ static int gdb_get_registers_packet(struct connection *connection,
 	int reg_list_size;
 	int retval;
 	int reg_packet_size = 0;
-	char *reg_packet;
 	char *reg_packet_p;
+	static char reg_packet[576 + 1];
 	int i;
 
 #ifdef _DEBUG_GDB_IO_
@@ -1180,9 +1180,10 @@ static int gdb_get_registers_packet(struct connection *connection,
 
 	assert(reg_packet_size > 0);
 
-	reg_packet = malloc(reg_packet_size + 1); /* plus one for string termination null */
-	if (reg_packet == NULL)
+	if(reg_packet_size > 576) {
+		LOG_ERROR("REG PACKET BUFFER TOO SMALL! NEED %d BYTES",(reg_packet_size + 1));
 		return ERROR_FAIL;
+	}
 
 	reg_packet_p = reg_packet;
 
@@ -1203,7 +1204,6 @@ static int gdb_get_registers_packet(struct connection *connection,
 #endif
 
 	gdb_put_packet(connection, reg_packet, reg_packet_size);
-	free(reg_packet);
 
 	free(reg_list);
 
@@ -1378,8 +1378,8 @@ static int gdb_read_memory_packet(struct connection *connection,
 	uint64_t addr = 0;
 	uint32_t len = 0;
 
-	uint8_t *buffer;
-	char *hex_buffer;
+	static uint8_t buffer[128];
+	static char hex_buffer[128 * 2 + 1];
 
 	int retval = ERROR_OK;
 
@@ -1401,7 +1401,10 @@ static int gdb_read_memory_packet(struct connection *connection,
 		return ERROR_OK;
 	}
 
-	buffer = malloc(len);
+	if(len > 128) {
+		LOG_ERROR("MEMORY PACKET AND HEX BUFFER TOO SMALL! NEED %d BYTES AND NEED %d BYTES", len, (len * 2 + 1));
+		exit(-1);
+	}
 
 	LOG_DEBUG("addr: 0x%16.16" PRIx64 ", len: 0x%8.8" PRIx32 "", addr, len);
 
@@ -1426,17 +1429,11 @@ static int gdb_read_memory_packet(struct connection *connection,
 	}
 
 	if (retval == ERROR_OK) {
-		hex_buffer = malloc(len * 2 + 1);
-
 		size_t pkt_len = hexify(hex_buffer, buffer, len, len * 2 + 1);
 
 		gdb_put_packet(connection, hex_buffer, pkt_len);
-
-		free(hex_buffer);
 	} else
 		retval = gdb_error(connection, retval);
-
-	free(buffer);
 
 	return retval;
 }
@@ -2427,6 +2424,7 @@ static int gdb_generate_thread_list(struct target *target, char **thread_list_ou
 static int gdb_get_thread_list_chunk(struct target *target, char **thread_list,
 		char **chunk, int32_t offset, uint32_t length)
 {
+	static char chunk_buffer[43 + 2 + 3];
 	if (*thread_list == NULL) {
 		int retval = gdb_generate_thread_list(target, thread_list);
 		if (retval != ERROR_OK) {
@@ -2444,13 +2442,9 @@ static int gdb_get_thread_list_chunk(struct target *target, char **thread_list,
 	else
 		transfer_type = 'l';
 
-	*chunk = malloc(length + 2 + 3);
-    /* Allocating extra 3 bytes prevents false positive valgrind report
-	 * of strlen(chunk) word access:
-	 * Invalid read of size 4
-	 * Address 0x4479934 is 44 bytes inside a block of size 45 alloc'd */
-	if (*chunk == NULL) {
-		LOG_ERROR("Unable to allocate memory");
+	*chunk = chunk_buffer;
+	if (length > 43) {
+		LOG_ERROR("CHUNK BUFFER TOO SMALL! NEED %d BYTES",(length + 2 + 3));
 		return ERROR_FAIL;
 	}
 
@@ -2633,7 +2627,6 @@ static int gdb_query_packet(struct connection *connection,
 
 		gdb_put_packet(connection, xml, strlen(xml));
 
-		free(xml);
 		return ERROR_OK;
 	} else if (strncmp(packet, "QStartNoAckMode", 15) == 0) {
 		gdb_connection->noack_mode = 1;
@@ -3324,6 +3317,7 @@ static int gdb_target_start(struct target *target, const char *port)
 {
 	struct gdb_service *gdb_service;
 	int ret;
+
 	gdb_service = malloc(sizeof(struct gdb_service));
 
 	if (NULL == gdb_service)

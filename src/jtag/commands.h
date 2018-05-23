@@ -172,5 +172,6 @@ enum scan_type jtag_scan_type(const struct scan_command *cmd);
 int jtag_scan_size(const struct scan_command *cmd);
 int jtag_read_buffer(uint8_t *buffer, const struct scan_command *cmd);
 int jtag_build_buffer(const struct scan_command *cmd, uint8_t **buffer);
+int jtag_build_buffer_prefetch(const struct scan_command *cmd, uint8_t **buffer);
 
 #endif /* OPENOCD_JTAG_COMMANDS_H */

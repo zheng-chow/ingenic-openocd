@@ -985,6 +985,7 @@ static int mips_xburst_read_memory(struct target *target, target_addr_t address,
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	static uint8_t t_buffer[128 * 1];
 
 	LOG_DEBUG("address: " TARGET_ADDR_FMT ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
 			address, size, count);
@@ -1005,9 +1006,9 @@ static int mips_xburst_read_memory(struct target *target, target_addr_t address,
 	void *t = NULL;
 
 	if (size > 1) {
-		t = malloc(count * size * sizeof(uint8_t));
-		if (t == NULL) {
-			LOG_ERROR("Out of memory");
+		t = t_buffer;
+		if(count * size > 128) {
+			LOG_ERROR("XBURST READ MEMORY BUFFER TOO SMALL! NEED %d BYTES",(count * size * sizeof(uint8_t)));
 			return ERROR_FAIL;
 		}
 	} else
@@ -1029,9 +1030,6 @@ static int mips_xburst_read_memory(struct target *target, target_addr_t address,
 		}
 	}
 
-	if ((size > 1) && (t != NULL))
-		free(t);
-
 	return retval;
 }
 
@@ -1040,6 +1038,7 @@ static int mips_xburst_write_memory(struct target *target, target_addr_t address
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	static uint8_t t_buffer[84 * 1];
 
 	LOG_DEBUG("address: " TARGET_ADDR_FMT ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
 			address, size, count);
@@ -1068,9 +1067,9 @@ static int mips_xburst_write_memory(struct target *target, target_addr_t address
 	if (size > 1) {
 		/* mips32_..._write_mem with size 4/2 requires uint32_t/uint16_t in host */
 		/* endianness, but byte array represents target endianness               */
-		t = malloc(count * size * sizeof(uint8_t));
-		if (t == NULL) {
-			LOG_ERROR("Out of memory");
+		t = t_buffer;
+		if(count * size > 84) {
+			LOG_ERROR("XBURST WRITE MEMORY BUFFER TOO SMALL! NEED %d BYTES",(count * size * sizeof(uint8_t)));
 			return ERROR_FAIL;
 		}
 
@@ -1087,9 +1086,6 @@ static int mips_xburst_write_memory(struct target *target, target_addr_t address
 
 	/* use DMAACC mode for memory write */
 	int retval = mips32_pracc_write_mem(ejtag_info, address, size, count, buffer);
-
-	if (t != NULL)
-		free(t);
 
 	if (ERROR_OK != retval)
 		return retval;
@@ -1156,6 +1152,7 @@ static int mips_xburst_bulk_write_memory(struct target *target, target_addr_t ad
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	struct working_area *fast_data_area;
+	static uint32_t t_buffer[4096];
 	int retval;
 	int write_t = 1;
 
@@ -1197,19 +1194,12 @@ static int mips_xburst_bulk_write_memory(struct target *target, target_addr_t ad
 	/* mips32_pracc_fastdata_xfer requires uint32_t in host endianness, */
 	/* but byte array represents target endianness                      */
 	uint32_t *t = NULL;
-	t = malloc(count * sizeof(uint32_t));
-	if (t == NULL) {
-		LOG_ERROR("Out of memory");
-		return ERROR_FAIL;
-	}
+	t = t_buffer;
 
 	target_buffer_get_u32_array(target, buffer, count, t);
 
 	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address,
 			count, t);
-
-	if (t != NULL)
-		free(t);
 
 	if (retval != ERROR_OK)
 		LOG_ERROR("Fastdata access Failed");

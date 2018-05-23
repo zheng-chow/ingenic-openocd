@@ -65,6 +65,8 @@ void *cmd_queue_alloc(size_t size)
 	struct cmd_queue_page **p_page = &cmd_queue_pages;
 	int offset;
 	uint8_t *t;
+	static uint8_t page_buffer[12];
+	static uint8_t address_buffer[CMD_QUEUE_PAGE_SIZE];
 
 	/*
 	 * WARNING:
@@ -105,11 +107,17 @@ void *cmd_queue_alloc(size_t size)
 	}
 
 	if (!*p_page) {
-		*p_page = malloc(sizeof(struct cmd_queue_page));
+		*p_page = page_buffer;
+		if (sizeof(struct cmd_queue_page) > 12) {
+			LOG_ERROR("PAGE BUFFER TOO SMALL! NEED %d BYTES",sizeof(struct cmd_queue_page));
+			exit(-1);
+		}
 		(*p_page)->used = 0;
-		size_t alloc_size = (size < CMD_QUEUE_PAGE_SIZE) ?
-					CMD_QUEUE_PAGE_SIZE : size;
-		(*p_page)->address = malloc(alloc_size);
+		(*p_page)->address = address_buffer;
+		if (size > CMD_QUEUE_PAGE_SIZE) {
+			LOG_ERROR("ADDRESS BUFFER TOO SMALL! NEED %d BYTES",size);
+			exit(-1);
+		}
 		(*p_page)->next = NULL;
 		cmd_queue_pages_tail = *p_page;
 	}
@@ -123,15 +131,6 @@ void *cmd_queue_alloc(size_t size)
 
 static void cmd_queue_free(void)
 {
-	struct cmd_queue_page *page = cmd_queue_pages;
-
-	while (page) {
-		struct cmd_queue_page *last = page;
-		free(page->address);
-		page = page->next;
-		free(last);
-	}
-
 	cmd_queue_pages = NULL;
 	cmd_queue_pages_tail = NULL;
 }
@@ -159,9 +158,28 @@ enum scan_type jtag_scan_type(const struct scan_command *cmd)
 int jtag_build_buffer(const struct scan_command *cmd, uint8_t **buffer)
 {
 	int bit_count = 0;
+	static uint8_t data_buffer[84];
 
 	bit_count = cmd->fields[0].num_bits;
-	*buffer = calloc(1, DIV_ROUND_UP(bit_count, 8));
+	*buffer = data_buffer;
+	memset(data_buffer, 0, DIV_ROUND_UP(bit_count, 8));
+
+	if (cmd->fields[0].out_value) {
+		buf_set_buf(cmd->fields[0].out_value, 0, *buffer,
+				0, cmd->fields[0].num_bits);
+	}
+
+	return bit_count;
+}
+
+int jtag_build_buffer_prefetch(const struct scan_command *cmd, uint8_t **buffer)
+{
+	int bit_count = 0;
+	static uint8_t data_buffer[84];
+
+	bit_count = cmd->fields[0].num_bits;
+	*buffer = data_buffer;
+	memset(data_buffer, 0, DIV_ROUND_UP(bit_count, 8));
 
 	if (cmd->fields[0].out_value) {
 		buf_set_buf(cmd->fields[0].out_value, 0, *buffer,

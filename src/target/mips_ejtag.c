@@ -247,7 +247,7 @@ error:
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info)
 {
 	pa_list pracc_list = {.instr = MIPS32_DRET(ejtag_info->isa), .addr = 0};
-	struct pracc_queue_info ctx = {.max_code = 1, .pracc_list = &pracc_list, .code_count = 1, .store_count = 0};
+	struct pracc_queue_info ctx = {.pracc_list = &pracc_list, .code_count = 1, .store_count = 0};
 
 	/* execute our dret instruction */
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 0); /* shift out instr, omit last check */
